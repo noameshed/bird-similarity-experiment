@@ -117,7 +117,7 @@ def saveUsedImages(namepath, imgpath, savepath):
         # Open file and store contents
         df = pd.read_csv(namepath+f)
 
-        for index, row in df.iterrows():
+        for row in df.iterrows():
             # Get the paths for the two birds in the pair
             path1 = row[0]
             path2 = row[1]
