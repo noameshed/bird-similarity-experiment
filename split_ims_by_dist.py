@@ -30,6 +30,7 @@ def getMinAndMax(datapath):
 def normalize(datapath):
     # Get normalized (0-1) distance scores and save them in files
     print('Normalizing scores')
+    
     # Compute overall min and max scores
     mindist, maxdist = getMinAndMax(datapath)
     
@@ -44,6 +45,7 @@ def normalize(datapath):
 
         # Overwrite CSV with new normalized scores
         df.to_csv(datapath+f)
+        
         # Clear memory from dataframe
         del df
         
@@ -142,21 +144,21 @@ def saveUsedImages(namepath, imgpath, savepath):
 
 
 if __name__ == "__main__":
-    datapath = os.getcwd() + '/image_distances/'
+    datapath = os.getcwd() + '/alexnet_hiddenlayer_distances/layer8_dists_alexnet/'
     pairscorespath = os.getcwd() + '/stratified_img_pairs/'
     imgpath = os.getcwd() + '/images/Aves/'
     imgsubsetpath = os.getcwd() + '/images/Aves_sub/'
 
-    #normalize(datapath)        # Set scores to be between 0 and 1
-    #stratifyPairs(datapath, savepath, 7)       # Split scores by CNN score into 7 bins
+    normalize(datapath)                        # Set scores to be between 0 and 1
+    stratifyPairs(datapath, pairscorespath, 7)       # Split scores by CNN score into 7 bins
 
-    # There are too many image pairs and the data files are too large
-    # Precompute the image pairs that we want users to see
-    pairs = 150   # How many image pairs are chosen from each set
+    # There are too many image pairs and the data files are too large, so we
+    # precompute the image pairs that we want participants to see
     # 100 images -> 18% overlap between participants
     # 150 images -> 8% overlap between participants
     # 200 images -> 4.6% overlap between participants
-    #selectSubset(savepath, pairs)
+    pairs = 150   # How many image pairs are chosen from each set
+    selectSubset(pairscorespath, pairs)
 
     # Copy the randomly chosen images to a new folder
     saveUsedImages(pairscorespath, imgpath, imgsubsetpath)
