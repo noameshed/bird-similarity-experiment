@@ -4,6 +4,7 @@ import pandas as pd
 from tqdm import tqdm
 import shutil
 
+#TODO: Make all of this work when a file has multiple score types
 def getMinAndMax(datapath):
     # Get the min and max distance scores from *all* of the pairs of image distances
     maxdist = 0
@@ -28,12 +29,12 @@ def getMinAndMax(datapath):
     return mindist, maxdist
 
 def normalize(datapath):
-    # Get normalized (0-1) distance scores and save them in files
+    # Get normalized (0-1) distance scores for the image pairs used in
+    # this experiment and save them in the original files
     print('Normalizing scores')
     
     # Compute overall min and max scores
     mindist, maxdist = getMinAndMax(datapath)
-    
     for f in tqdm(os.listdir(datapath)):
         # Open file as pandas df
         df = pd.read_csv(datapath+f)
@@ -44,7 +45,7 @@ def normalize(datapath):
         df['normScores'] = normScores
 
         # Overwrite CSV with new normalized scores
-        df.to_csv(datapath+f)
+        df.to_csv(datapath+f,index=False)
         
         # Clear memory from dataframe
         del df
