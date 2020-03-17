@@ -7,6 +7,7 @@ import os
 import pandas as pd
 from tqdm import tqdm
 from math import floor
+from pairwise_dist import compute_distances
 
 #TODO: Make this work when file has multiple score types
 #TODO: Make this work for database of CNN scores, not just the scores local to the participant data files
@@ -23,6 +24,9 @@ def make_key(row):
     if img1[-4:] == '.jpg':
         img1 = img1[:-4]
         img2 = img2[:-4]
+
+    img1 = img1.replace('.jpg', '')
+    img2 = img2.replace('.jpg', '')
     
     # Create dictionary key s.t. first name is first alphabetically
     if img1 < img2:
@@ -31,93 +35,33 @@ def make_key(row):
         key = img2 + '_' + img1
     return key
 
-def cnn_score_lookup_dict(all_pairs_path, experiment_path, scoretype='euclid'):
+def get_cnn_score(im1_name, im2_name, base_impath):
     """
-    Creates a dictionary for looking up the similarity of an image pair based on the CNN score provided
-    Dictionary keys are the names of the two images separated by _ and in alphabetical order
-    Dictionary values are the pair distance (default 'euclid', but can also choose 'kl' )
+    Computes the distances scores for the two images on the 3rd, second to last, and output
+    layers of AlexNet
     """
 
-    # Make a list of all pairs in the experiment
-    allpairs = []
-    for fname in os.listdir(experiment_path):
-        with open(experiment_path + fname,'r') as f:
-            reader = csv.reader(f)
-            for row in reader:
-                key, img1, img2 = make_key(row)
-                allpairs.append(key)
+    im1_name = im1_name.replace('.jpg', '')
+    im1_name = im1_name.replace('.jpg', '')
 
-    allpairs = set(allpairs)
-    cnn_scores = {}
-    for pair in allpairs:
-        img1 = pair.split('_')[0]
-        img2 = pair.split('_')[1]
-        
-        species1 = img1.split('/')[0] + '.csv'
+    im1_path_l3 = base_impath + 'Aves_layer3/' + im1_name + '_layer3_filter0_Guided_BP_color.jpg'
+    im2_path_l3 = base_impath + 'Aves_layer3/' + im2_name + '_layer3_filter0_Guided_BP_color.jpg'
+    euk3, kl3 = compute_distances(im1_path_l3, im2_path_l3)
 
-        print(img1, img2)
+    im1_path_l8 = base_impath + 'Aves_layer8/' + im1_name + '_layer8_filter0_Guided_BP_color.jpg'
+    im2_path_l8 = base_impath + 'Aves_layer8/' + im2_name + '_layer8_filter0_Guided_BP_color.jpg'
+    euk8, kl8 = compute_distances(im1_path_l8, im2_path_l8)
 
-        with open(all_pairs_path+species1,'r') as f:
+    return euk3, kl3, euk8, kl8
 
-            df = pd.read_csv(f)
-            #img1_list = df['image1']
-            #img2_list = df['image2']
-            
-            found_col1 = df[df['image1'].str.contains(img1)]
-            found_col2 = df[df['image2'].str.contains(img2)]
-
-            print(found_col1.empty, found_col2.empty)
-            # if not found_col1.empty:
-            #     # image1 is in the first column - find the second image in the second column
-            #     row = found_col1[found_col1['image2'].str.contains(img2)]
-            #     print(row)
-            # elif not found_col2.empty:
-            #     # image1 is in the first column - find the second image in the second column
-            #     row = found_col2[found_col2['image2'].str.contains(img2)]
-            #     print(row)
-            # else:
-            #     # The image is not found anywhere - this should not happen
-            #     print('NOT FOUND',found_col1.empty, found_col2.empty)
-
-
-            # for idx, row in df.iterrows():
-            #     if img1 in row['image1']:
-            #         print('FOUND', row)
-
-
-
-
-    # Now add the image pairs used in the experiment to the dictionary
-
-    """
-    cnn_scores = {}
-    for fname in tqdm(os.listdir(all_pairs_path)):
-        with open(all_pairs_path+fname, 'r') as f:
-            reader = csv.reader(f)
-            rownum = 0
-            for row in reader:
-                if rownum == 0:     # Skip header row
-                    rownum += 1
-                    continue
-
-                key = make_key(row)
-                scoreidx = 2 + row.index(scoretype) # Find which column the normalized score is in
-                score = float(row[scoreidx])
-                
-                # Add information to dictionary if needed
-                if key in allpairs:
-                    cnn_scores[key] = score
-    """
-    return cnn_scores
-
-def parse_human_data(datapath):
+def parse_human_data(datapath, gradientpath):
     """
     Parses all of the experiment participant data and returns a dictionary where
     the key is a bird pair name and the value is a list of scores given to that pair by all participants
     """
 
     # Look at each participant's results
-    human_scores = {}
+    human_scores = {}       # All human scores
     cnn_scores = {}
     counter = 0
     for fname in tqdm(os.listdir(datapath)):
@@ -133,16 +77,23 @@ def parse_human_data(datapath):
                 key = make_key(row)
                 score = int(row[2])     # assumes score is in 3rd column of table
                 cnn_score = float(row[3])   
-                resp_time = float(row[4])       
+                resp_time = float(row[4])    
             
                 # Add the score to the dictionary
                 if key not in human_scores.keys():
-                    human_scores[key] = []
-                human_scores[key].append(score)
+                    human_scores[key] = ([],[])
+                human_scores[key][0].append(score)
+
+                # Add the prompt to the dictionary
+                if 'bird' in fname:
+                    human_scores[key][1].append('bird')
+                else:
+                    human_scores[key][1].append('image')
+
                 cnn_scores[key] = cnn_score
                 counter += 1
 
-    return human_scores, cnn_scores
+    return cnn_scores, human_scores
 
 def plot_bin_agreement(cnn_scores, human_scores):
     """
@@ -161,34 +112,40 @@ def plot_bin_agreement(cnn_scores, human_scores):
     agree2 = [0,0,0,0,0,0,0]
     cnn_choice = [0,0,0,0,0,0,0]        # How many times did the CNN choose each bin? Should be roughly equal
     human_choice = [0,0,0,0,0,0,0]
+    avg_hscores = []
+    all_cscores = []            # All of the CNN scores to match all of the human scores
     all_hscores = []
-    all_cscores = []  
+    all_cscores_unique = []     # Each of the CNN scores once 
     pairs = []
+    prompts = []
 
     people_per_pair = []
-
     for key in cnn_scores.keys():
         
         # Retrieve cnn scores - originally between 0-1 - and convert to be between 0-6
         # CNN scores are originally inverted from human scores, so subtract from 1
         norm_cnn_score = 1-cnn_scores[key]
-        all_cscores.append(norm_cnn_score)
+        all_cscores_unique.append(norm_cnn_score)
         cnn_score = 7*norm_cnn_score
         
         cnn_bin = floor(cnn_score)      # Round CNN score to a bin number
         
 
         # Retrieve the human score list and compute the average score for this image pair
-        avg_human_score = sum(human_scores[key])/len(human_scores[key])
+        avg_human_score = sum(human_scores[key][0])/len(human_scores[key][0])
         norm_human_score = avg_human_score/7
-        all_hscores.append(norm_human_score)
-        people_per_pair.append(len(human_scores[key]))
+        avg_hscores.append(norm_human_score)
+        
+        people_per_pair.append(len(human_scores[key][0]))
 
         pairs.append(key)
 
         # Count how many times humans agree with the network within a margin of error
-        for score in human_scores[key]:
+        for i, score in enumerate(human_scores[key][0]):
             score -= 1  # To make it from 0-6
+            prompts.append(human_scores[key][1][i])
+            all_cscores.append(norm_cnn_score)
+            all_hscores.append(score)
 
             human_choice[score] += 1
             cnn_choice[cnn_bin] += 1
@@ -205,17 +162,37 @@ def plot_bin_agreement(cnn_scores, human_scores):
 
     print('On average, %f people saw each image pair.' %(sum(people_per_pair)/len(people_per_pair)))
 
+    all_cscores = np.array(all_cscores)
+    all_hscores = np.array(all_hscores)
+    prompts = np.array(prompts)
+    
     # Plot the two image score distributions
     plt.figure()
     xs = range(len(pairs))
-    sort_idx = np.argsort(all_hscores)
+    sort_idx = np.argsort(avg_hscores)
     plt.plot(xs, np.array(all_cscores)[sort_idx], 'r-', linewidth=0.25, label='CNN Scores')
-    plt.plot(xs, np.array(all_hscores)[sort_idx], 'b-', linewidth=0.5, label='Human Scores')
+    plt.plot(xs, np.array(avg_hscores)[sort_idx], 'b-', linewidth=0.5, label='Human Scores')
     
     plt.title('Similarity Scores Over All Image Pairs')
     plt.legend()
     plt.xlabel('Image Pair')
     plt.ylabel('Similarity Score (0-1)')
+
+    plt.tight_layout()
+    plt.show()
+
+    # Scatter plot of human vs CNN scores
+    plt.figure()
+    idx_birds = np.argwhere(prompts=='bird')
+    idx_image = np.argwhere(prompts=='image')
+    
+    plt.scatter(all_hscores[idx_birds], all_cscores[idx_birds], c='r', marker='x', label='Bird Prompt')
+    plt.scatter(all_hscores[idx_image], all_cscores[idx_image], c='b', marker='.', label='Image Prompt')
+
+    plt.title('CNN vs Human Scores - All Image Pairs')
+    plt.legend()
+    plt.xlabel('Human Scores, Least to Most Similar')
+    plt.ylabel('CNN Scores, Least to Most Similar')
 
     plt.tight_layout()
     plt.show()
@@ -264,28 +241,9 @@ def plot_bin_agreement(cnn_scores, human_scores):
 #TODO: Is there a difference between human responses in the 2 prompts?
 
 if __name__ == "__main__":
-    cnn_score_files = os.getcwd() + '/alexnet_hiddenlayer_distances/alexnet_layer8_dists/'
-    experiment_pair_files = os.getcwd() + '/stratified_img_pairs/'
     participant_data_files = os.getcwd() + '/data/'
-    savename = 'cnn_score_lookup_alexnetlayer8.json'
+    gradientpath = 'D:/noam_/Cornell/CS7999/iNaturalist/gradients/'     # Path where the images are stored
 
-    # Create a dictionary of the CNN scores
-    #cnn_scores = cnn_score_lookup_dict(cnn_score_files, experiment_pair_files)
-
-    # Save cnn scores as json
-    #with open ('cnn_score_lookup_alexnetlayer8.json', 'w') as fp:
-    #    json.dump(cnn_scores, fp, sort_keys=True, indent=4)
-    
-    # with open(os.getcwd() + '/cnn_score_lookup_alexnetlayer8.json') as jsonfile:
-    #     cnn_scores = json.load(jsonfile)        # Load CNN scores
-    #     human_scores, cnn_scores = parse_human_data(participant_data_files) # Load human scores
-
-    #     #print(len(cnn_scores.keys()), len(human_scores.keys()))       # should be 992, <=992
-
-    #     # Plot agreement between average participants and cnn
-    #     plot_bin_agreement(cnn_scores, human_scores)
-
-    #     # TODO: Compute inter-participant agreement
-
-    human_scores, cnn_scores = parse_human_data(participant_data_files) # Load human scores
+    # TODO: Compute inter-participant agreement
+    cnn_scores, human_scores = parse_human_data(participant_data_files, gradientpath) # Load human scores
     plot_bin_agreement(cnn_scores, human_scores)
