@@ -9,241 +9,414 @@ from tqdm import tqdm
 from math import floor
 from pairwise_dist import compute_distances
 
-#TODO: Make this work when file has multiple score types
-#TODO: Make this work for database of CNN scores, not just the scores local to the participant data files
+class Analysis():
 
-def make_key(row):
-    """
-    Takes a row of image pair scores and converts to a key, assuming
-    that the first two elements of the row are the bird names
-    """
-    img1 = row[0].split('_')[0]
-    img2 = row[1].split('_')[0]
+    def __init__(self, gradient_path, partic_path):
+        # Initialize the Analysis object with relevant paths
+        self.gradientpath = gradient_path
+        self.participantpath = partic_path
 
-    # Remove '.jpg' if it is at the end of the image name
-    if img1[-4:] == '.jpg':
-        img1 = img1[:-4]
-        img2 = img2[:-4]
+        # Create dictionary for the human and CNN scores 
+        self.allscores_path = partic_path + 'with_cnn_scores/'
+        if not os.path.exists(self.allscores_path):
+                os.mkdir(self.allscores_path)
 
-    img1 = img1.replace('.jpg', '')
-    img2 = img2.replace('.jpg', '')
-    
-    # Create dictionary key s.t. first name is first alphabetically
-    if img1 < img2:
-        key = img1 + '_' + img2
-    else:
-        key = img2 + '_' + img1
-    return key
+        self.data_dict = {}     #   Format:
+                                #     { participantID   : { 
+                                #         'prompt_type' : <string>
+                                #         'image_pairs' : <np array>
+                                #         'resp_times'  : <np array>
+                                #         'hscores'     : <np array>
+                                #         'cnn_scores'  : <dictionary of scores> }
+                                #     ...
+                                #     }
 
-def get_cnn_score(im1_name, im2_name, base_impath):
-    """
-    Computes the distances scores for the two images on the 3rd, second to last, and output
-    layers of AlexNet
-    """
+        self.cnn_layers = set()
 
-    im1_name = im1_name.replace('.jpg', '')
-    im1_name = im1_name.replace('.jpg', '')
+        # Create dictionary by score
+        self.scores_dict = {}   #   Format:
+                                #     { score (0-7)   : {
+                                #         'image_pairs' : <np array>
+                                #         'prompts'     : <np array>
+                                #         'cnn_scores'  : <dictionary of scores> }
+                                #     ...
+                                #     }
 
-    im1_path_l3 = base_impath + 'Aves_layer3/' + im1_name + '_layer3_filter0_Guided_BP_color.jpg'
-    im2_path_l3 = base_impath + 'Aves_layer3/' + im2_name + '_layer3_filter0_Guided_BP_color.jpg'
-    euk3, kl3 = compute_distances(im1_path_l3, im2_path_l3)
+    def calc_cnn_scores(self, networks):
+        """ 
+        Computes the CNN scores for each of the image pairs in the participant data
+        and stores them in the human score files
+        Scores: 
+            Euclidean and KL divergence scores for all of the networks/layers in 
+            the list 'networks'
+        """
 
-    im1_path_l8 = base_impath + 'Aves_layer8/' + im1_name + '_layer8_filter0_Guided_BP_color.jpg'
-    im2_path_l8 = base_impath + 'Aves_layer8/' + im2_name + '_layer8_filter0_Guided_BP_color.jpg'
-    euk8, kl8 = compute_distances(im1_path_l8, im2_path_l8)
+        # Extract data from all participant data files
+        columns_to_normalize = []
+        for pfile in os.listdir(self.participantpath):
 
-    return euk3, kl3, euk8, kl8
-
-def parse_human_data(datapath, gradientpath):
-    """
-    Parses all of the experiment participant data and returns a dictionary where
-    the key is a bird pair name and the value is a list of scores given to that pair by all participants
-    """
-
-    # Look at each participant's results
-    human_scores = {}       # All human scores
-    cnn_scores = {}
-    counter = 0
-    for fname in tqdm(os.listdir(datapath)):
-        with open(datapath+fname, 'r') as f:
-            # Read each row to get score for that bird
-            reader = csv.reader(f)
-            rownum = 0
-            for row in reader:
-                if rownum <= 15:     # Skip header row and practice round
-                    rownum += 1
-                    continue
-
-                key = make_key(row)
-                score = int(row[2])     # assumes score is in 3rd column of table
-                cnn_score = float(row[3])   
-                resp_time = float(row[4])    
+            # Open participant file as pandas dataframe
+            pdata = pd.read_csv(self.participantpath + pfile)
+            pdata.rename(columns={'alexnet_l3_euc':'alexnet_l8_euc'}, inplace=True)
+            pdata.to_csv(self.participantpath + pfile, index=False)
             
-                # Add the score to the dictionary
-                if key not in human_scores.keys():
-                    human_scores[key] = ([],[])
-                human_scores[key][0].append(score)
+            # Go through each network layer requested
+            for net in networks:            # net format is <network>_<bio-group>_<cnn layer>
+                layer = net[-1]
+                euclist = []
+                kllist = []
+                
+                # Go through each image pair
+                for _, row in pdata.iterrows():
 
-                # Add the prompt to the dictionary
-                if 'bird' in fname:
-                    human_scores[key][1].append('bird')
-                else:
-                    human_scores[key][1].append('image')
+                    # Parse row data
+                    im1_name = row['leftIm'].replace('.jpg','')
+                    im2_name = row['rightIm'].replace('.jpg','')
 
-                cnn_scores[key] = cnn_score
-                counter += 1
+                    im1_path = self.gradientpath + net + '/' + im1_name + '_layer' + layer + '_filter0_Guided_BP_color.jpg'
+                    im2_path = self.gradientpath + net + '/' + im2_name + '_layer' + layer + '_filter0_Guided_BP_color.jpg'
 
-    return cnn_scores, human_scores
+                    # Compute the distances for each image pair
+                    euc, kl = compute_distances(im1_path, im2_path)
+                    euclist.append(euc)
+                    kllist.append(kl)
+                    
+                # Update the dataframe
+                eucname = net.split('_')[0] + '_l' + layer + '_euc'
+                klname = net.split('_')[0] + '_l' + layer + '_kl'
 
-def plot_bin_agreement(cnn_scores, human_scores):
-    """
-    Plots the 7 bins on the x axis and plots the percentage of the time which the humans agreed
-    with the cnn score. 
+                if net != 'alexnet_aves_layer8':    
+                    # All data files already have the scores for alexnet euc. layer 8
+                    pdata[eucname] = euclist
+                    columns_to_normalize.append(eucname)
+                pdata[klname] = kllist
+                columns_to_normalize.append(klname)
 
-    The human score for each image pair is computed as the average score of all people who rated
-    that image pair. Note that individuals only had the option to rate an image pair an integer score 1-7
-
-    Agreement score (per bin):
-        (times human and cnn awarded that bin score)/(times cnn gave that bin score)
-    """
-
-    agree0 = [0,0,0,0,0,0,0]
-    agree1 = [0,0,0,0,0,0,0]
-    agree2 = [0,0,0,0,0,0,0]
-    cnn_choice = [0,0,0,0,0,0,0]        # How many times did the CNN choose each bin? Should be roughly equal
-    human_choice = [0,0,0,0,0,0,0]
-    avg_hscores = []
-    all_cscores = []            # All of the CNN scores to match all of the human scores
-    all_hscores = []
-    all_cscores_unique = []     # Each of the CNN scores once 
-    pairs = []
-    prompts = []
-
-    people_per_pair = []
-    for key in cnn_scores.keys():
+            # Save the file with the additional data
+            pdata.to_csv(self.allscores_path + pfile, index=False)
         
-        # Retrieve cnn scores - originally between 0-1 - and convert to be between 0-6
-        # CNN scores are originally inverted from human scores, so subtract from 1
-        norm_cnn_score = 1-cnn_scores[key]
-        all_cscores_unique.append(norm_cnn_score)
-        cnn_score = 7*norm_cnn_score
-        
-        cnn_bin = floor(cnn_score)      # Round CNN score to a bin number
-        
+        self.normalize(columns_to_normalize)
 
-        # Retrieve the human score list and compute the average score for this image pair
-        avg_human_score = sum(human_scores[key][0])/len(human_scores[key][0])
-        norm_human_score = avg_human_score/7
-        avg_hscores.append(norm_human_score)
-        
-        people_per_pair.append(len(human_scores[key][0]))
+    def normalize(self, columns_to_normalize):
+        ## Normalize the CNN scores in the data files
+         
+        # Get the min and max scores for each distance metric
+        mins = np.inf*np.ones(len(columns_to_normalize))
+        maxs = -1*np.inf*np.ones(len(columns_to_normalize))
 
-        pairs.append(key)
+        for pfile in os.listdir(self.allscores_path):    
+            # Open file as pandas dataframe
+            pdata = pd.read_csv(self.allscores_path + pfile)
 
-        # Count how many times humans agree with the network within a margin of error
-        for i, score in enumerate(human_scores[key][0]):
-            score -= 1  # To make it from 0-6
-            prompts.append(human_scores[key][1][i])
-            all_cscores.append(norm_cnn_score)
-            all_hscores.append(score)
+            # Find min and max of each distance score column
+            filemaxs = np.array(pdata.loc[:,columns_to_normalize].max())
+            filemins = np.array(pdata.loc[:,columns_to_normalize].min())
 
-            human_choice[score] += 1
-            cnn_choice[cnn_bin] += 1
-            # Depending on which bin the CNN put the label in, compute the human agreement...
-            if score == cnn_bin:    # ...within the same bin
-                agree0[cnn_bin] += 1
+            # Indices to replace with smaller/larger values
+            idxmax = filemaxs > maxs
+            idxmins = filemins < mins
             
-            if abs(score-cnn_bin) <= 1:     # ...within 1 bin on either side
-                agree1[cnn_bin] += 1
+            # Replace with smaller/larger values as appropriate
+            maxs[idxmax] = filemaxs[idxmax]
+            mins[idxmins] = filemins[idxmins]         
 
-            if abs(score-cnn_bin) <= 2:      # ...within 2 bins on either side
-                agree2[cnn_bin] += 1
+        # Calculate normalized score per column
+        for pfile in os.listdir(self.allscores_path):    
+            # Open file as pandas dataframe
+            pdata = pd.read_csv(self.allscores_path + pfile)
+
+            # Normalize the appropriate columns
+            scores = pdata.loc[:,columns_to_normalize]
+            normScores = (scores-mins)/(maxs-mins)
+            pdata.loc[:,columns_to_normalize] = normScores
+
+            # Save new normalized scores
+            pdata.to_csv(self.allscores_path + pfile, index=False)
+
+    def parse_data(self):
+        """
+        Parses the participant data with associated network costs and stores the data into 
+        a dictionary
+        """
+
+        # Go through all participant data files
+        for pfile in os.listdir(self.allscores_path):    
+
+            # Parse file name for information
+            fname = pfile.split('_')
+            ID = fname[0]
+            self.data_dict[ID] = {}
+
+            if 'birds' in fname[1]:
+                self.data_dict[ID]['prompt'] = 'birds'
+            else:
+                self.data_dict[ID]['prompt'] = 'images'
+
+            # Open file as pandas dataframe
+            pdata = pd.read_csv(self.allscores_path + pfile)
+
+            # Store the human response times and scores as-is
+            # Ignore the first 15 entries - these are from the practice round
+            self.data_dict[ID]['resp_times'] = np.array(pdata['responseTime'])[15:]
+            self.data_dict[ID]['hscores'] = np.array(pdata['userChoice'])[15:]   
+
+            # Store the image pair key   
+            pairs = []
+            for row in pdata[0:2]:
+                pairs.append(self.make_key(row))
+
+            self.data_dict[ID]['image_pairs'] = np.array(pairs)[15:]
+
+            # Store the inverted normalized CNN scores for each layer
+            # Invert the scores so that a higher score means more similar
+            self.data_dict[ID]['cnn_scores'] = {}
+            for i in range(4,len(pdata.columns)):   # Go through all CNN data columns
+                colname = pdata.columns[i]
+                self.data_dict[ID]['cnn_scores'][colname] = 1-np.array(pdata[colname])[15:]  
+
+                self.cnn_layers.add(colname)
+              
+    def make_scores_dict(self):
+        """
+        Create a dictionary of human scores with the format:
+             { score (0-7)   : {
+                 'image_pairs' : <list>
+                 'resp_times'  : <list>
+                 'prompts'     : <list>  
+                 'cnn_scores'  : <dictionary of scores>  }
+             ...
+             }
+        """
+
+        # Initialize the dictionary
+        for i in range(1,8):
+            self.scores_dict[i] = { 'image_pairs' : [],
+                                    'resp_times'  : [],
+                                    'prompts'     : [],
+                                    'cnn_scores'  : {}
+                                    }
+
+        # Go through all participant data files
+        for pfile in os.listdir(self.allscores_path):    
+
+            # Check the prompt for that file
+            fname = pfile.split('_')
+            if 'birds' in fname[1]:
+                prompt = 'birds'
+            else:
+                prompt = 'images'
+
+            # Open file as pandas dataframe
+            pdata = pd.read_csv(self.allscores_path + pfile)
+
+            # For each row of data, add to the proper dictionary key:
+            #       - the name of the image pair
+            #       - the response time
+            #       - the scores of all networks & layers provided
+            for i, row in pdata.iterrows():
+                s = row['userChoice']
+                time = row['responseTime']
+                pair = self.make_key(row)
+
+                self.scores_dict[s]['image_pairs'].append(pair)
+                self.scores_dict[s]['resp_times'].append(time)
+                self.scores_dict[s]['prompts'].append(prompt)
+                
+                for i in range(4,len(pdata.columns)):   # Go through all CNN data columns
+                    colname = pdata.columns[i]
+                    cnn_score = row[colname]
+
+                    if colname not in self.scores_dict[s]['cnn_scores'].keys():
+                        self.scores_dict[s]['cnn_scores'][colname] = []
+                    self.scores_dict[s]['cnn_scores'][colname].append(cnn_score)
 
 
-    print('On average, %f people saw each image pair.' %(sum(people_per_pair)/len(people_per_pair)))
+    def make_key(self, row):
+        """
+        Takes a row of image pair scores and converts to a key, assuming
+        that the first two elements of the row are the bird names
+        """
+        img1 = row[0].split('_')[0]
+        img2 = row[1].split('_')[0]
 
-    all_cscores = np.array(all_cscores)
-    all_hscores = np.array(all_hscores)
-    prompts = np.array(prompts)
-    
-    # Plot the two image score distributions
-    plt.figure()
-    xs = range(len(pairs))
-    sort_idx = np.argsort(avg_hscores)
-    plt.plot(xs, np.array(all_cscores)[sort_idx], 'r-', linewidth=0.25, label='CNN Scores')
-    plt.plot(xs, np.array(avg_hscores)[sort_idx], 'b-', linewidth=0.5, label='Human Scores')
-    
-    plt.title('Similarity Scores Over All Image Pairs')
-    plt.legend()
-    plt.xlabel('Image Pair')
-    plt.ylabel('Similarity Score (0-1)')
+        # Remove '.jpg' if it is at the end of the image name
+        if img1[-4:] == '.jpg':
+            img1 = img1[:-4]
+            img2 = img2[:-4]
 
-    plt.tight_layout()
-    plt.show()
+        img1 = img1.replace('.jpg', '')
+        img2 = img2.replace('.jpg', '')
+        
+        # Create dictionary key s.t. first name is first alphabetically
+        if img1 < img2:
+            key = img1 + '_' + img2
+        else:
+            key = img2 + '_' + img1
+        return key
 
-    # Scatter plot of human vs CNN scores
-    plt.figure()
-    idx_birds = np.argwhere(prompts=='bird')
-    idx_image = np.argwhere(prompts=='image')
-    
-    plt.scatter(all_hscores[idx_birds], all_cscores[idx_birds], c='r', marker='x', label='Bird Prompt')
-    plt.scatter(all_hscores[idx_image], all_cscores[idx_image], c='b', marker='.', label='Image Prompt')
-
-    plt.title('CNN vs Human Scores - All Image Pairs')
-    plt.legend()
-    plt.xlabel('Human Scores, Least to Most Similar')
-    plt.ylabel('CNN Scores, Least to Most Similar')
-
-    plt.tight_layout()
-    plt.show()
-
-    # Plot the distribution of cnn bins 
-    plt.figure()
-    xs = range(len(cnn_choice))
-    plt.bar(xs, cnn_choice)
-    plt.title('Distribution of CNN score bins')
-    plt.xlabel('Bin number (i.e. Similarity Score) Least to Most Similar')
-    plt.ylabel('Number of image pairs')
-
-    plt.tight_layout()
-    plt.show()
-
-    # Plot the distribution of human scores
-    plt.figure()
-    xs = range(len(human_choice))
-    plt.bar(xs, human_choice)
-    plt.title('Distribution of Human Scores')
-    plt.xlabel('Bin number (i.e. Similarity Score) Least to Most Similar')
-    plt.ylabel('Number of image pairs')
-
-    plt.tight_layout()
-    plt.show()
-
-    # Plot the agreement between the CNN and people
-    plt.figure()
-    w=0.25
-    xs0 = np.arange(len(cnn_choice))-w
-    xs1 = [x+w for x in xs0]
-    xs2 = [x+w for x in xs1]
-    plt.bar(xs0, np.array(agree0)/np.array(cnn_choice), width=w, label='Agree Exactly')
-    plt.bar(xs1, np.array(agree1)/np.array(cnn_choice), width=w, label='Agree Within 1 Bin')
-    plt.bar(xs2, np.array(agree2)/np.array(cnn_choice), width=w, label='Agree Within 2 Bins')
-    
-    plt.title('Agreement Between People and AlexNet (Euclidean Dist)')
-    plt.legend()
-    plt.xlabel('Similarity Score (Least to Most Similar)')
-    plt.ylabel('% Agreement')
-
-    plt.tight_layout()
-    plt.show()
-
-
-#TODO: Is there a difference between human responses in the 2 prompts?
 
 if __name__ == "__main__":
     participant_data_files = os.getcwd() + '/data/'
-    gradientpath = 'D:/noam_/Cornell/CS7999/iNaturalist/gradients/'     # Path where the images are stored
+    #gradientpath = 'D:/noam_/Cornell/CS7999/iNaturalist/gradients/'     # Path where the images are stored
+    gradientpath = os.getcwd() + '/gradients/'
+
+    networks = ['vgg_aves_layer0',         # The folders where you store gradient images
+                'alexnet_aves_layer8']         # Format: <network>_<bio-group>_<cnn layer>
 
     # TODO: Compute inter-participant agreement
-    cnn_scores, human_scores = parse_human_data(participant_data_files, gradientpath) # Load human scores
-    plot_bin_agreement(cnn_scores, human_scores)
+    A = Analysis(gradientpath, participant_data_files)
+    #A.calc_cnn_scores(networks)         # Only needs to be done once - this makes a copy of your data files with the additional calculations
+
+    A.parse_data()
+    A.make_scores_dict()
+
+    ###############################################################################
+    ## Scatter plot of CNN scores vs participant scores, stratified by prompt type
+    ###############################################################################
+    # One plot per score type
+    for scoretype in A.cnn_layers:
+
+        # Congregate data for all participants
+        xbird = []
+        ximage = []
+        ybird = []
+        yimage = []
+
+        # Split participant data and cnn data by prompt
+        for part in A.data_dict.keys():
+
+            x = list(A.data_dict[part]['hscores'])                      # Human Scores
+            y = list(A.data_dict[part]['cnn_scores'][scoretype])      # Network Scores
+
+            if A.data_dict[part]['prompt'] == 'birds':
+                xbird += x
+                ybird += y
+            else:
+                ximage += x
+                yimage += y
+        
+        
+        plt.figure()
+        plt.scatter(xbird, ybird, label='Bird Prompt', c='b', marker='x')
+        plt.scatter(ximage, yimage, label='Image Prompt', c='r', marker='.')
+        plt.title('Network vs Human Scores by Prompt')
+        plt.xlabel('Human Scores (Least to Most Similar)')
+        plt.ylabel('Normalized Network Scores (%s, Least to Most Similar)' %scoretype)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        
+        
+    ###############################################################################
+    ## Bar plot of number of human scores per category based on prompt
+    ###############################################################################
+    score_bird = np.zeros(7)
+    score_image = np.zeros(7)
+    for part in A.data_dict.keys():
+        
+        # Count the number of times each label was chosen
+        if A.data_dict[part]['prompt'] == 'birds':
+            for score in A.data_dict[part]['hscores']:
+                score_bird[score-1] += 1
+        else:
+            for score in A.data_dict[part]['hscores']:
+                score_image[score-1] += 1
+
+    plt.figure()
+    plt.bar(np.arange(len(score_bird))-.25, score_bird/sum(score_bird),     width=.25, label='Bird Prompt',  color='b')
+    plt.bar(np.arange(len(score_bird)),     score_image/sum(score_image),   width=.25, label='Image Prompt', color='r')
+    plt.xticks(np.arange(len(score_bird))-.25, range(1,1+len(score_bird)))
+    plt.title('Distribution of Human Scores by Prompt')
+    plt.xlabel('Score (Least to Most Similar)')
+    plt.ylabel('Frequency of Score')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    ###############################################################################
+    ## Bar plot of the agreement between humans and CNN
+    ############################################################################### 
+    scoretype = 'alexnet_l8_euc'
+
+    # Get distribution of human scores and store image pairs by score
+    # (probability of each score)
+    score_distro = []
+    for s in A.scores_dict.keys():
+        score_distro.append(1.*len(A.scores_dict[s]['image_pairs']))
+    print(score_distro)
+    score_distro = np.array(score_distro)
+    score_distro /= sum(score_distro)
+    print(score_distro)
+
+
+    # Continuously draw an image pair from the human score distribution and
+    # count the agreement
+    agree0 = np.zeros(7)
+    agree1 = np.zeros(7)
+    agree2 = np.zeros(7)
+    total = np.zeros(7)
+    for i in range(10000):
+        s = np.random.choice(np.arange(1,8), p=score_distro)
+        
+        cnn_score = np.random.choice(A.scores_dict[s]['cnn_scores'][scoretype])
+        cnn_bin = np.floor(7*cnn_score) + 1
+
+        if cnn_bin == s:        # Scores match exactly
+            agree0[s-1] += 1
+        if abs(cnn_bin - s) < 2:
+            agree1[s-1] += 1
+        if abs(cnn_bin - s) < 3:
+            agree2[s-1] += 1
+
+        total[s-1] += 1
+
+    print(agree0/total)
+
+    x = np.arange(1., 8)
+    
+    plt.figure()
+    #print(agree0/sum(agree0))
+    plt.bar(x, agree0/total, width=0.2, label='Agree Exactly')
+    plt.bar(x+0.2, agree1/total, width=0.2, label='Agree Within 1 Bin')
+    plt.bar(x+0.4, agree2/total, width=0.2, label='Agree Within 2 Bins')
+
+    plt.title('Score Agreement By Network & Layer')
+    plt.xlabel('Human Score (Least to Most Similar)')
+    plt.ylabel('Frequency of Network Agreement on This Score')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    
+
+    ###############################################################################
+    ## Bar plot of the distribution of scores between networks
+    ############################################################################### 
+    plt.figure()
+    x = np.arange(1.0,8) - 0.3
+    margin = 0.05
+    width = (1.-2.*margin)/7
+    for i,scoretype in enumerate(A.cnn_layers):
+
+        cnn = []
+        for part in A.data_dict.keys():     # TODO: FIX THIS! IT IS WRONG
+            cnn += [A.data_dict[part]['cnn_scores'][scoretype]]      # Network Scores
+
+        # Convert the CNN scores to human score range (1-7)
+        cnn_bins = np.floor(7*cnn) + 1
+
+        # Count how many times the network chooses each bin
+        y = []
+        for i in range(7):
+            y.append(len(np.argwhere(cnn_bins == i+1)))
+
+        
+        plt.bar(x, np.array(y)/sum(y), width=.2, label = scoretype)
+        x += 0.2
+
+    
+    plt.title('Score Distribution By Network & Layer')
+    plt.xlabel('Score (Human Scale, Least to Most Similar)')
+    plt.ylabel('Frequency of Score')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
