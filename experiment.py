@@ -36,7 +36,7 @@ class BirdSimExp():
         # Make a new csv file to save data
         fileName = self.expInfo['Participant ID'] + '_PT=' + self.prompt + '_' + self.expInfo['dateStr']
         self.dataFile = open(self.path+'/data/'+fileName+'.csv', 'w+')  # a simple text file with comma-separated-values
-        self.dataFile.write('leftIm,rightIm,userChoice,cnnRating,responseTime\n')
+        self.dataFile.write('leftIm,rightIm,userChoice,responseTime,alexnet_l8_euc\n')
 
         # Create a window using the monitor's dimensions
         user32 = ctypes.windll.user32
@@ -155,7 +155,7 @@ Then press Enter. Press any key when you are ready to begin.")
                     
             t1 = timer.getTime()
             if writeData:
-                self.dataFile.write('%s,%s,%s,%s,%s\n' %(path1, path2, self.rating.getRating(), str(cnn_rating), t1-t0))
+                self.dataFile.write('%s,%s,%s,%s,%s\n' %(path1, path2, self.rating.getRating(), t1-t0, str(cnn_rating)))
 
     def thankyou(self):
         # display end-of-experiment message
