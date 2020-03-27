@@ -173,12 +173,11 @@ class Analysis():
 
             self.partic_dict[ID]['image_pairs'] = np.array(pairs)[15:]
 
-            # Store the inverted normalized CNN scores for each layer
-            # Invert the scores so that a higher score means more similar
+            # Store the normalized CNN scores for each layer
             self.partic_dict[ID]['cnn_scores'] = {}
             for i in range(4,len(pdata.columns)):   # Go through all CNN data columns
                 colname = pdata.columns[i]
-                self.partic_dict[ID]['cnn_scores'][colname] = 1-np.array(pdata[colname])[15:]  
+                self.partic_dict[ID]['cnn_scores'][colname] = np.array(pdata[colname])[15:]  
 
                 self.cnn_layers.add(colname)
               
@@ -220,6 +219,9 @@ class Analysis():
             #       - the response time
             #       - the scores of all networks & layers provided
             for i, row in pdata.iterrows():
+                # Skip the first 15 rows (practice round)
+                if i < 15:
+                    continue
                 s = row['userChoice']
                 time = row['responseTime']
                 pair = self.make_key(row)
@@ -265,6 +267,9 @@ class Analysis():
             #   - prompts (bird or image)
             #   - cnn scores for each cnn/layer provided
             for i, row in pdata.iterrows():
+                # Skip the first 15 rows (practice round)
+                if i < 15:
+                    continue
                 pair = self.make_key(row)
 
                 # Add to dictionary if not there yet
