@@ -41,7 +41,7 @@ class Analysis():
         # Create dictionary by image pair
         self.image_dict = {}    #   Format:
                                 #     { image_pair_key  : {
-                                #         'scores'       : <np array of all human scores for that pair>
+                                #         'scores'      : <np array of all human scores for that pair>
                                 #         'prompts'     : <np array>
                                 #         'cnn_scores'  : <dictionary of scores>    }
                                 #     }

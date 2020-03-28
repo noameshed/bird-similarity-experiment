@@ -40,6 +40,7 @@ if __name__ == "__main__":
 
 		# Update the distribution with each image pair score
 		for impair in A.image_dict.keys():
+			# Invert score so that higher scores are 'more similar'
 			cnn_score = 1. - A.image_dict[impair]['cnn_scores'][net]
 
 			# Convert to discrete score 1-7
@@ -51,6 +52,17 @@ if __name__ == "__main__":
 		# Normalize scores
 		cnnscore_distro[net] = cnnscore_distro[net]/np.sum(cnnscore_distro[net])
 
+	###############################################################################
+	## Bar plot of number of human scores overall
+	###############################################################################
+
+	plt.figure()
+	plt.bar(np.arange(1,8.), hscore_distro, width=.25, color='b')
+	plt.title('Distribution of Human Scores')
+	plt.xlabel('Score (Least to Most Similar)')
+	plt.ylabel('Frequency of Score')
+	plt.tight_layout()
+	plt.show()
 
 	###############################################################################
 	## Bar plot of number of human scores per category based on prompt
@@ -151,18 +163,20 @@ if __name__ == "__main__":
 			agree_chance[s1-1] += 1
 		total_chance[s1-1] += 1
 
-	## Plot true vs chance agreement
+	# Plot true vs chance agreement
+	"""
 	# x = np.arange(1., 8)
 	# plt.figure()
-	# plt.bar(x, agree_true/total_true, width=0.2, label='True agreement')
-	# plt.bar(x+0.2, agree/total, width=0.2, label='Chance agreement')
+	# plt.bar(x, agree_true0/total_true, width=0.2, label='True agreement')
+	# plt.bar(x+0.2, agree_chance/total_chance, width=0.2, label='Chance agreement')
 	
 	# plt.title('Human-Human Score Agreement')
-	# plt.xlabel('Human Score (Least to Most Similar)')
+	# plt.xlabel('Score (Least to Most Similar)')
 	# plt.ylabel('Frequency of Human Agreement')
 	# plt.legend()
 	# plt.tight_layout()
 	# plt.show()
+	"""
 
 	## Plot human-human agreement by prompt as a scatter plot
 	agreement = np.zeros((7,7))
@@ -220,10 +234,86 @@ if __name__ == "__main__":
 	"""    
 
 	###############################################################################
-	## Plot human-network agreement
+	## Plot human-network agreement - all networks together
 	############################################################################### 
-	scoretype = 'alexnet_l8_euc'
+	# plt.figure()
+	x = np.arange(1.,8)
+	w = 0.05
 
+	agree_b = np.zeros(7)
+	total_b = np.zeros(7)
+	agree_i = np.zeros(7)
+	total_i = np.zeros(7)
+	for scoretype in A.cnn_layers:
+
+		agree = np.zeros(7)
+		total = np.zeros(7)
+		# Plot agreement per network
+		for i in range(10000):
+			# Randomly select score from human distribution
+			s = np.random.choice(np.arange(1,8), p=hscore_distro)
+			
+			# Randomly select an entry index (i.e. image pair)
+			idx = np.random.choice(range(len(A.scores_dict[s]['prompts'])))
+
+			# Get the prompt and CNN score
+			prompt = A.scores_dict[s]['prompts'][idx]
+			cnn_score = 1 - A.scores_dict[s]['cnn_scores'][scoretype][idx]
+			cnn_bin = int(np.floor(7*cnn_score) + 1)
+			if cnn_bin == 8:	# Edge case where the network score was highest possible
+				cnn_bin -=	1
+
+			if cnn_bin == s:        # Scores match exactly
+				agree[cnn_bin-1] += 1
+			if abs(cnn_bin - s) < 2:
+				agree[cnn_bin-1] += 1
+			if abs(cnn_bin - s) < 3:
+				agree[cnn_bin-1] += 1
+			total[cnn_bin-1] += 1
+
+			if prompt == 'birds':
+				if cnn_bin == s:        # Scores match exactly
+					agree_b[cnn_bin-1] += 1
+				total_b[cnn_bin-1] += 1
+
+			else:			# Prompt is 'images'
+				if cnn_bin == s:        # Scores match exactly
+					agree_i[cnn_bin-1] += 1
+				total_i[cnn_bin-1] += 1
+
+		# Plot this network's agreement scores
+		# plt.bar(x, agree/total, width=w, label=scoretype)
+		x += w
+
+	"""
+	plt.title('Human-Network Agreement (P(H ^ N | N))')
+	plt.xlabel('Score (Least to Most Similar)')
+	plt.ylabel('Frequency of Human Agreement')
+	plt.legend()
+	plt.tight_layout()
+	plt.show()
+	"""
+
+	plt.figure()
+	x = np.arange(1.,8)
+	plt.bar(x, agree_b/total_b, width=0.25, label='Bird Prompt')
+	plt.bar(x+0.25, agree_i/total_i, width=0.25, label='Image Prompt')
+	plt.title('Human-Network Agreement By Prompt')
+	plt.xlabel('Score (Least to Most Similar)')
+	plt.ylabel('Frequency of Human Agreement')
+	plt.legend()
+	plt.tight_layout()
+	plt.show()
+
+
+	###############################################################################
+	## Plot human-network agreement - one network at a time
+	############################################################################### 
+
+	scoretype = 'vgg_l28_kl'
+	network_description = 'VGG16 L28 Kl'
+
+	"""
 	# TRUE AGREEMENT
 	# Continuously draw an image pair from the human score distribution and
 	# count the agreement
@@ -236,8 +326,9 @@ if __name__ == "__main__":
 
 	total_b = np.zeros(7)
 	total_i = np.zeros(7)
+
 	for i in range(10000):
-		# Randomly select a score to draw from
+		# Randomly select score from human distribution
 		s = np.random.choice(np.arange(1,8), p=hscore_distro)
 		
 		# Randomly select an entry index (i.e. image pair)
@@ -246,57 +337,46 @@ if __name__ == "__main__":
 		# Get the prompt and CNN score
 		prompt = A.scores_dict[s]['prompts'][idx]
 		cnn_score = 1 - A.scores_dict[s]['cnn_scores'][scoretype][idx]
-		cnn_bin = np.floor(7*cnn_score) + 1
+		cnn_bin = int(np.floor(7*cnn_score) + 1)
+		if cnn_bin == 8:	# Edge case where the network score was highest possible
+			cnn_bin -=	1
 
 		if prompt == 'birds':
 			if cnn_bin == s:        # Scores match exactly
-				agree0_b[s-1] += 1
+				agree0_b[cnn_bin-1] += 1
 			if abs(cnn_bin - s) < 2:
-				agree1_b[s-1] += 1
+				agree1_b[cnn_bin-1] += 1
 			if abs(cnn_bin - s) < 3:
-				agree2_b[s-1] += 1
+				agree2_b[cnn_bin-1] += 1
 
-			total_b[s-1] += 1
+			total_b[cnn_bin-1] += 1
 
 		else:   # Prompt is 'images'
 			if cnn_bin == s:        # Scores match exactly
-				agree0_i[s-1] += 1
+				agree0_i[cnn_bin-1] += 1
 			if abs(cnn_bin - s) < 2:
-				agree1_i[s-1] += 1
+				agree1_i[cnn_bin-1] += 1
 			if abs(cnn_bin - s) < 3:
-				agree2_i[s-1] += 1
+				agree2_i[cnn_bin-1] += 1
 
-			total_i[s-1] += 1
+			total_i[cnn_bin-1] += 1
+		
 
 	x = np.arange(1., 8)
-	
-	"""
-	# Plot bird agreement
-	plt.figure()
-	plt.bar(x, agree0_b/total_b, width=0.2, label='Agree Exactly')
-	plt.bar(x+0.2, agree1_b/total_b, width=0.2, label='Agree Within 1 Bin')
-	plt.bar(x+0.4, agree2_b/total_b, width=0.2, label='Agree Within 2 Bins')
 
-	plt.title('Score Agreement By Network & Layer - Bird Prompt')
-	plt.xlabel('Human Score (Least to Most Similar)')
-	plt.ylabel('Frequency of Network Agreement on This Score')
+	# Plot bird agreement over a few bins
+	plt.figure()
+	total = total_b + total_i
+	plt.bar(x, (agree0_b+agree0_i)/(total_i+total_b), width=0.2, label='Agree Exactly')
+	plt.bar(x+0.2, (agree1_b+agree1_i)/(total_i+total_b), width=0.2, label='Agree Within 1 Bin')
+	plt.bar(x+0.4, (agree2_b+agree2_i)/(total_i+total_b), width=0.2, label='Agree Within 2 Bins')
+
+	plt.title('Human-' + network_description + ' Agreement')
+	plt.xlabel('Score (Least to Most Similar)')
+	plt.ylabel('Frequency of Human Agreement')
 	plt.legend()
 	plt.tight_layout()
 	plt.show()
-
-	# Plot image agreement
-	plt.figure()
-	plt.bar(x, agree0_i/total_i, width=0.2, label='Agree Exactly')
-	plt.bar(x+0.2, agree1_i/total_i, width=0.2, label='Agree Within 1 Bin')
-	plt.bar(x+0.4, agree2_i/total_i, width=0.2, label='Agree Within 2 Bins')
-
-	plt.title('Score Agreement By Network & Layer - Image Prompt')
-	plt.xlabel('Human Score (Least to Most Similar)')
-	plt.ylabel('Frequency of Network Agreement on This Score')
-	plt.legend()
-	plt.tight_layout()
-	plt.show()
-	"""
 
 	# CHANCE AGREEMENT
 	agree_chance = np.zeros(7)
@@ -305,28 +385,42 @@ if __name__ == "__main__":
 	for i in range(10000):
 
 		# Draw 2 scores from the score distributions
-		s1 = np.random.choice(np.arange(1,8), p=hscore_distro)		# Human
-		s2 = np.random.choice(np.arange(1,8), p=hscore_distro)		# Network
+		s1 = np.random.choice(np.arange(1,8), p=hscore_distro)				# Human
+		s2 = np.random.choice(np.arange(1,8), p=cnnscore_distro[scoretype])		# Network
+				# cnnscore_distro is already inverted to be from least to most similar
 
-		# If the 'people' have the same score, update the distribution
+		# If the person and network have the same score, update the distribution
 		if s1 == s2:
-			agree_chance[s1-1] += 1
-		total_chance[s1-1] += 1
+			agree_chance[s2-1] += 1
+		total_chance[s2-1] += 1
 
 	## Plot true vs chance agreement
-	# x = np.arange(1., 8)
-	# plt.figure()
-	# plt.bar(x, agree_true/total_true, width=0.2, label='True agreement')
-	# plt.bar(x+0.2, agree/total, width=0.2, label='Chance agreement')
+	x = np.arange(1., 8)
+	plt.figure()
+	plt.bar(x, (agree0_b+agree0_i)/(total_b+total_i), width=0.2, label='True agreement')
+	plt.bar(x+0.2, agree_chance/total_chance, width=0.2, label='Chance agreement')
 	
-	# plt.title('Human-Human Score Agreement')
-	# plt.xlabel('Human Score (Least to Most Similar)')
-	# plt.ylabel('Frequency of Human Agreement')
-	# plt.legend()
-	# plt.tight_layout()
-	# plt.show()
+	plt.title('Human-' + network_description + ' Agreement (P(H ^ N | N))')
+	plt.xlabel('Score (Least to Most Similar)')
+	plt.ylabel('Frequency of Human Agreement')
+	plt.legend()
+	plt.tight_layout()
+	plt.show()
+	
+	## Plot human-network agreement by prompt 
+	plt.figure()
+	plt.bar(x, agree0_b/total_b, width=0.2, label='Bird Prompt')
+	plt.bar(x+0.2, agree0_i/total_i, width=0.2, label='Image Prompt')
+	plt.bar(x+0.4, agree_chance/total_chance, width=0.2, label='Agree By Chance')
 
-
+	plt.title('Human-' + network_description + ' Agreement By Prompt')
+	plt.xlabel('Score (Least to Most Similar)')
+	plt.ylabel('Frequency of Human Agreement')
+	plt.legend()
+	plt.tight_layout()
+	plt.show()
+	"""
+	
 	###############################################################################
 	## Scatter plot of CNN scores vs participant scores, stratified by prompt type
 	###############################################################################
@@ -343,7 +437,7 @@ if __name__ == "__main__":
 		for part in A.partic_dict.keys():
 
 			x = list(A.partic_dict[part]['hscores'])                      # Human Scores
-			y = list(A.partic_dict[part]['cnn_scores'][scoretype])      # Network Scores
+			y = list(1 - A.partic_dict[part]['cnn_scores'][scoretype])      # Network Scores (inverted)
 
 			if A.partic_dict[part]['prompt'] == 'birds':
 				xbird += x
@@ -352,13 +446,17 @@ if __name__ == "__main__":
 				ximage += x
 				yimage += y
 		
+		# Add some jitter to the scores to make them easier to see
+		xbird += np.random.uniform(low=-.25, high=0.25, size=len(xbird))
+		ximage += np.random.uniform(low=-.25, high=0.25, size=len(ximage))
+
 		"""
 		plt.figure()
 		plt.scatter(xbird, ybird, label='Bird Prompt', c='b', marker='x')
 		plt.scatter(ximage, yimage, label='Image Prompt', c='r', marker='.')
-		plt.title('Network vs Human Scores by Prompt')
+		plt.title('Network (' + scoretype +') vs Human Scores by Prompt')
 		plt.xlabel('Human Scores (Least to Most Similar)')
-		plt.ylabel('Normalized Network Scores (%s, Least to Most Similar)' %scoretype)
+		plt.ylabel('Normalized Network Scores (Least to Most Similar)')
 		plt.legend()
 		plt.tight_layout()
 		plt.show()
@@ -389,4 +487,5 @@ if __name__ == "__main__":
 	plt.tight_layout()
 	plt.show()
 	"""
+	
 	
