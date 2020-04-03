@@ -1,16 +1,18 @@
-import json
 import numpy as np
 import os
 import pandas as pd
-from pairwise_dist import compute_distances
+from pairwise_dist import compute_euc, compute_kl
+from tqdm import tqdm
 
 class Analysis():
     # This class is made to analyse the human participant data from the bird image similarity experiments
 
-    def __init__(self, gradient_path, partic_path):
+    def __init__(self, feature_path, partic_path, network_labels_path):
         # Initialize the Analysis object with relevant paths
-        self.gradientpath = gradient_path
-        self.participantpath = partic_path
+        self.feature_path = feature_path
+        self.participant_path = partic_path
+        self.labels_path = network_labels_path
+        self.cnn_layers = set()
 
         # Create dictionary for the human and CNN scores 
         self.allscores_path = os.getcwd() + '/data_with_cnn_scores/'
@@ -26,8 +28,6 @@ class Analysis():
                                 #         'cnn_scores'  : <dictionary of scores> }
                                 #     ...
                                 #     }
-
-        self.cnn_layers = set()
 
         # Create dictionary by score
         self.scores_dict = {}   #   Format:
@@ -51,54 +51,69 @@ class Analysis():
         Computes the CNN scores for each of the image pairs in the participant data
         and stores them in the human score files
         Scores: 
-            Euclidean and KL divergence scores for all of the networks/layers in 
-            the list 'networks'
+            Euclidean distance scores for all of the networks/layers in 
+            the list 'networks' 
+            KL divergence scores for the label probability distribution of each network (output layer)
         """
 
         # Extract data from all participant data files
         columns_to_normalize = []
-        for pfile in os.listdir(self.participantpath):
+        for pfile in os.listdir(self.participant_path):
 
             # Open participant file as pandas dataframe
-            pdata = pd.read_csv(self.participantpath + pfile)
-            pdata.rename(columns={'alexnet_l3_euc':'alexnet_l8_euc'}, inplace=True)
-            pdata.to_csv(self.participantpath + pfile, index=False)
+            pdata = pd.read_csv(self.participant_path + pfile)
             
-            # Go through each network layer requested
-            for net in networks:            # net format is <network>_<bio-group>_<cnn layer>
-                layer = net.split('_')[-1]
+            # Go through each network layer requested and compute euclidean distance
+            for net in networks:
+
                 euclist = []
-                kllist = []
-                
                 # Go through each image pair
                 for _, row in pdata.iterrows():
 
                     # Parse row data
-                    im1_name = row['leftIm'].replace('.jpg','')
-                    im2_name = row['rightIm'].replace('.jpg','')
+                    im1_path = row['leftIm'].replace('.jpg','')
+                    im2_path = row['rightIm'].replace('.jpg','')
 
-                    im1_path = self.gradientpath + net + '/' + im1_name + '_' + layer + '_filter0_Guided_BP_color.jpg'
-                    im2_path = self.gradientpath + net + '/' + im2_name + '_' + layer + '_filter0_Guided_BP_color.jpg'
+                    feat1_path = self.feature_path + net + '/' + im1_path + '.pt'
+                    feat2_path = self.feature_path + net + '/' + im2_path + '.pt'
 
                     # Compute the distances for each image pair
-                    euc, kl = compute_distances(im1_path, im2_path)
+                    euc = compute_euc(feat1_path, feat2_path)
                     euclist.append(euc)
-                    kllist.append(kl)
                     
                 # Update the dataframe
-                num = layer.split('layer')[-1]
-                eucname = net.split('_')[0] + '_l' + num + '_euc'
-                klname = net.split('_')[0] + '_l' + num + '_kl'
+                eucname = net + '_euc'
+                pdata[eucname] = euclist
+                
+                columns_to_normalize.append(eucname)
 
-                if net != 'alexnet_aves_layer8':    
-                    # All data files already have the scores for alexnet euc. layer 8
-                    pdata[eucname] = euclist
-                    columns_to_normalize.append(eucname)
+            # Compute the symmetric KL divergence for the output layer for each network 
+            # (length-1000 label probability distribution)
+            # Go through each image pair
+            
+            for net in ['alexnet_output']:      # TODO: Also look at VGG output
+                
+                kllist = []
+                
+                for _, row in tqdm(pdata.iterrows()):
+
+                    # Parse row data
+                    im1_path = row['leftIm']
+                    im2_path = row['rightIm']
+
+                    # Compute the distances for each image pair
+                    kl = compute_kl(self.labels_path, im1_path, im2_path)
+                    kllist.append(kl)
+                
+                # Update the dataframe
+                klname = net + '_kl'
                 pdata[klname] = kllist
+                
                 columns_to_normalize.append(klname)
-
+            
             # Save the file with the additional data
             pdata.to_csv(self.allscores_path + pfile, index=False)
+        
         
         self.normalize(columns_to_normalize)
 

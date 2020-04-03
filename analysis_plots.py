@@ -121,7 +121,7 @@ def human_human_agreement(A, hscore_distro):
 
 	## Method 1, select 10,000 random images
 	
-	for i in range(10000):
+	for _ in range(10000):
 	    # Randomly select an image
 	    im = np.random.choice(list(A.image_dict.keys()))
 	    scores = A.image_dict[im]['scores']
@@ -186,10 +186,10 @@ def human_human_agreement(A, hscore_distro):
 	# Plot true vs chance agreement
 	x = np.arange(1., 8)
 	plt.figure()
-	plt.bar(x, agree_true0/total_true, width=0.2, label='True agreement')
-	plt.bar(x+0.2, agree_chance/total_chance, width=0.2, label='Chance agreement')
+	plt.bar(x, agree_true0/total_true, width=0.2, color='r',label='True agreement')
+	plt.bar(x+0.2, agree_chance/total_chance, width=0.2, color='b',label='Chance agreement')
 	
-	plt.title('Human-Human Score Agreement')
+	plt.title('Inter-Participant Agreement')
 	plt.xlabel('Score (Least to Most Similar)')
 	plt.ylabel('Frequency of Human Agreement')
 	plt.legend()
@@ -202,7 +202,7 @@ def human_human_agreement(A, hscore_distro):
 	plt.bar(x,      agree_true0/total_true, width=0.2, label='Exact Agreement')
 	plt.bar(x+0.2,  agree_true1/total_true, width=0.2, label='Agree Within 1 Bin')
 	plt.bar(x+0.4,  agree_true2/total_true, width=0.2, label='Agree Within 2 Bins')
-	plt.title('Human-Human Agreement')
+	plt.title('Inter-Participant Agreement Within 1 or 2 Points')
 	plt.xlabel('Score (Least to Most Similar)')
 	plt.ylabel('Frequency of Agreement')
 	plt.legend()
@@ -266,7 +266,7 @@ def human_network_agreement_combined(A, hscore_distro):
 	total_b = np.zeros(7)
 	agree_i = np.zeros(7)
 	total_i = np.zeros(7)
-	for scoretype in A.cnn_layers:
+	for scoretype in sorted(A.cnn_layers):
 
 		agree = np.zeros(7)
 		total = np.zeros(7)
@@ -485,18 +485,25 @@ def human_network_pairs(A):
 
 if __name__ == "__main__":
 	participant_data_files = os.getcwd() + '/data/'
-	gradientpath = os.getcwd() + '/gradients/'
+	feature_path = os.getcwd() + '/features/'
+	network_labels_path = 'C:/Users/noam_/Documents/Cornell/CS7999/novelty-detection/alexnet_inat_results/Aves/'
 
-	networks = ['alexnet_aves_layer8',      # The folders where you store gradient images
-				'alexnet_aves_layer3',      # Format: <network>_<bio-group>_<cnn layer>
-				'vgg_aves_layer0',
-				'vgg_aves_layer3',
-				'vgg_aves_layer14',
-				'vgg_aves_layer28']         
+	networks = ['alexnet_conv_1',
+				'alexnet_conv_2',
+				'alexnet_conv_3',
+				'alexnet_conv_4',
+				'alexnet_conv_5',
+				'vgg16_block_1',
+				'vgg16_block_2',
+				'vgg16_block_3',
+				'vgg16_block_4',
+				'vgg16_block_5'
+				]         
 
-	A = Analysis(gradientpath, participant_data_files)
-	# A.calc_cnn_scores(networks)         # Only needs to be done once - this makes a copy of your data files with the additional calculations
-
+	A = Analysis(feature_path, participant_data_files, network_labels_path)
+	A.calc_cnn_scores(networks)         # Only needs to be done once  -
+										# this makes a copy of your data files with the normalized network distance scores
+	"""
 	A.make_partic_dict()
 	A.make_scores_dict()
 	A.make_image_dict()
@@ -510,12 +517,12 @@ if __name__ == "__main__":
 	cnnscore_distro = network_score_distro(A, plot=False)
 
 	# Human-human agreement and trends
-	human_human_pairs(A)
-	human_human_agreement(A, hscore_distro)
+	# human_human_pairs(A)
+	# human_human_agreement(A, hscore_distro)
 
 	# Human-network agreement and trends
-	human_network_agreement_combined(A, hscore_distro)
+	# human_network_agreement_combined(A, hscore_distro)
 	human_network_agreement_separate(A, hscore_distro)
-	
-	human_network_pairs(A)
+	# human_network_pairs(A)
 
+	"""
