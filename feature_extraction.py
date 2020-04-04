@@ -9,11 +9,12 @@ from torchsummary import summary
 import torch.utils.data as data
 from tqdm import tqdm
 import os
+from transfer_model import Transfer
 
 BATCH_SIZE = 1
 ROOT = "D:/noam_/Cornell/CS7999/iNaturalist/"
 TEST_DATA_PATH = os.path.join(ROOT, "experiment classes/Aves/")
-SAVE_DATA_PATH = os.path.join(ROOT, "features/vgg16_block5/")
+SAVE_DATA_PATH = os.path.join(ROOT, "features/resnet_block1/")
 TRANSFORM_IMG = transforms.Compose([
         transforms.Resize(224),
         transforms.CenterCrop(224),
@@ -41,7 +42,7 @@ class ImageFolderWithPaths(torchvision.datasets.ImageFolder):
         return tuple_with_path
 
 if __name__ == '__main__':
-
+    """
     # Print AlexNet network summary
     print('ALEXNET')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -54,12 +55,24 @@ if __name__ == '__main__':
     vgg = models.vgg16(pretrained=True).to(device)
     summary(vgg,(3,244,244))
     print(nn.Sequential(*list(vgg.children())))
+    """
+
+    # Print VGG16 network summary
+    print('ResNet18')
+    CUB_path = 'model_train_sgd-lr_1e-01-gamma_1e-01-epoch_100-stage_2-decay_1e-03-bs_64-gpu_2.pth'
+    # model_state_dict = torch.load(CUB_path, map_location='cuda:0')
+    resnet = Transfer(num_channel=32, num_class=100, resnet=True)
+    model_state = torch.load(CUB_path, map_location='cuda:0')
+    resnet.load_state_dict(model_state)
+
+    # summary(model,(3,244,244))
+    print(nn.Sequential(*list(resnet.children())))
     
     # Extract the partial model up to the point of interest
     model_ft = models.vgg16(pretrained=True)
-    partial_model = nn.Sequential(*list(model_ft.children())[0][:30])
+    partial_model = nn.Sequential(*list(model_ft.children())[0][:3])
     print('Partial model:\n',partial_model)
-
+    
     # Set up model to not update parameters
     for param in partial_model.parameters():
         param.requires_grad = False
@@ -85,3 +98,4 @@ if __name__ == '__main__':
 
         # Example of loading results:
         # reading = torch.load(SAVE_DATA_PATH + foldername + filename)
+    
