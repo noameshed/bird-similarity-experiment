@@ -32,6 +32,7 @@ def compute_kl(basepath, im1_path, im2_path):
         return(0)
 
     # Extract the probability distribution of labels for the given images
+    print(basepath+spec1)
     with open(basepath + spec1) as f1:
         try:
             data = json.load(f1)

@@ -82,7 +82,7 @@ class Analysis():
                     euclist.append(euc)
                     
                 # Update the dataframe
-                eucname = net + '_euc'
+                eucname = net
                 pdata[eucname] = euclist
                 
                 columns_to_normalize.append(eucname)
@@ -91,7 +91,7 @@ class Analysis():
             # (length-1000 label probability distribution)
             # Go through each image pair
             
-            for net in ['alexnet_output']:      # TODO: Also look at VGG output
+            for net in ['alexnet_output', 'vgg16_output', 'resnet_output']:
                 
                 kllist = []
                 
@@ -102,11 +102,13 @@ class Analysis():
                     im2_path = row['rightIm']
 
                     # Compute the distances for each image pair
-                    kl = compute_kl(self.labels_path, im1_path, im2_path)
+                    print('FOLDER',  net.split('_')[0])
+                    basepath = os.path.join(self.labels_path, net.split('_')[0]+ '_inat_results/Aves/')
+                    kl = compute_kl(basepath, im1_path, im2_path)
                     kllist.append(kl)
                 
                 # Update the dataframe
-                klname = net + '_kl'
+                klname = net
                 pdata[klname] = kllist
                 
                 columns_to_normalize.append(klname)

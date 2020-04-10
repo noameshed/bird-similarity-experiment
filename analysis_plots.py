@@ -1,8 +1,10 @@
 
 import numpy as np
 import os
+import pandas as pd
 import matplotlib.pyplot as plt
 from analysis import Analysis
+from scipy.stats.stats import pearsonr
 
 def human_score_distro(A, plot=False):
 
@@ -83,30 +85,144 @@ def network_score_distro(A, plot=False):
 		# Normalize scores
 		cnnscore_distro[net] = cnnscore_distro[net]/np.sum(cnnscore_distro[net])
 
+	# Plot the true network distribution, not the binned one calculated above
 	if plot:
+		colors = ['red', 'green','blue']
+		for i,net in enumerate(['alexnet', 'vgg16', 'resnet']):
+			# plt.figure()
+			x = []
+			y = []
 
-		plt.figure()
-		w = 0.1
-		x = np.arange(1.0,8) - w*0.5*len(A.cnn_layers)/2
+			# Collect all scores for all image pairs
+			for p in A.image_dict.keys():
+				
+				for layer in A.image_dict[p]['cnn_scores']:
+					if 'euc' in layer:
+						continue
+					if net in layer:
+						num = layer.split('_')[-1]		# network name is <net>_<block/conv>_<num>
+						if num == 'output':
+							num = 6
+						x.append(1 - A.image_dict[p]['cnn_scores'][layer])	# invert score
+						y.append(int(num))
 
-		# Plot the score distribution for the networks
-		for i,net in enumerate(sorted(A.cnn_layers)):
-			# Plot only the euclidean scores - can change this to see kl scores, all scores, etc.
-			if 'euc' in net:  
-				y = cnnscore_distro[net]
-					
-				plt.bar(x, np.array(y), width=w, label = net)
-				x += w
+			# Compute average lines
+			x = np.array(x)
+			y = np.array(y)
 
-		plt.title('Score Distribution By Network & Layer - Euclidean Distance')
-		plt.xlabel('Score (Human Scale, Least to Most Similar)')
-		plt.ylabel('Frequency of Score')
-		plt.legend()
-		plt.tight_layout()
-		plt.show()
+			avgs = np.zeros(6)
+			for j in range(1,7):
+				idx = np.argwhere(y==j)
+				avgs[j-1] = np.sum(x[idx])/len(x[idx])
+
+			y = list(y)
+			y += np.random.uniform(low=-.2, high=0.2, size=len(y))
+			plt.scatter(x, y, c=colors[i], s=1)
+
+			# Plot average lines
+			for k, a in enumerate(avgs):
+				plt.plot([a, a], [k+0.5, k+1.5], c='black')
+				
+
+			netname = net.split('_')[0].capitalize()
+			plt.title('Score Distribution for ' + netname, fontsize=14)
+			plt.xlabel('Score (Least to Most Similar)', fontsize=12)
+			plt.ylabel('Network Layer', fontsize=12)
+			plt.yticks(ticks=np.arange(6)+1, labels=['1','2','3','4','5','output'], fontsize=10)
+			# plt.legend()
+			plt.tight_layout()
+			plt.show()
 
 	return cnnscore_distro
-		
+
+def response_time(A):
+	# Plot people's response times as the trial goes on
+
+	fig = plt.figure()
+	ax = fig.add_subplot(1,1,1)
+	xs = np.arange(1,316)
+	avg_ys = np.zeros(315)
+	# Loop through all participants
+	for fname in os.listdir(A.participant_path):
+		pdata = pd.read_csv(A.participant_path+fname)
+		ys = pdata['responseTime']#[15:]		# Skip the 15 question practice round
+		avg_ys += ys
+
+		plt.plot(xs,ys, c='silver', linewidth=0.5)
+
+	# Plot average time
+	avg_ys = avg_ys/len(os.listdir(A.participant_path))
+	plt.plot(xs, avg_ys, c='red')
+
+	# Plot lines of best fit
+	plt.plot(np.unique(xs[:15]), np.poly1d(np.polyfit(xs[:15],avg_ys[:15],1))(np.unique(xs[:15])), 'b')	
+	plt.plot(np.unique(xs[15:]), np.poly1d(np.polyfit(xs[15:],avg_ys[15:],1))(np.unique(xs[15:])), 'b')
+
+	# Plot vertical line after 15 questions
+	plt.plot([15, 15],[0,40], 'b-.', linewidth=0.75)
+	plt.text(17, 30, s='Practice Round End', fontsize=10)
+	ax.labelsize = 12
+	plt.title('Participant Response Times Throughout the Trial', fontsize=15)
+	plt.xlabel('Question Number (1-300)', fontsize=15)
+	plt.ylabel('Response Time (s)', fontsize=15)
+	plt.tight_layout()
+	plt.show()
+
+def human_human_pairs(A):
+	## Plot frequency of human-human score pairs
+	allscores = np.zeros((7,7))
+	
+	birdscores = []
+	imagescores = []
+	# Go through all image pairs
+	for img in A.image_dict.keys():
+		# Check if the image pair was shown to someone for both prompts
+		prompts = np.array(A.image_dict[img]['prompts'])
+		scores = np.array(A.image_dict[img]['scores'])
+		if 'birds' in prompts and 'images' in prompts:
+			# Count each pair of scores
+			idx_b = np.argwhere(prompts=='birds')
+			idx_i = np.argwhere(prompts=='images')
+
+			for b in idx_b:
+				sb = scores[b]
+				for i in idx_i:
+					si = scores[i]
+					allscores[sb[0]-1, si[0]-1] += 1
+
+					# Track all pairs of points for correlation score
+					birdscores.append(sb[0])
+					imagescores.append(si[0])
+
+	# Compute correlation between bird and image prompt
+	corr = pearsonr(birdscores, imagescores)
+	print('Correlation:', corr)	
+	
+	allscores_normalized = allscores/sum(allscores)	#np.sum(allscores) gets sum of entire matrix
+	
+	# Plot
+	xs = []
+	ys = []
+	size = []
+	colors = []
+	for x in range(7):
+		for y in range(7):
+			xs.append(x+1)
+			ys.append(y+1)
+			size.append(2000*allscores_normalized[x, y]) 
+			if x == y:
+				colors.append('r')
+			else:
+				colors.append('b')
+
+	plt.figure()
+	plt.scatter(xs,ys,s=size, c=colors)
+	plt.title('Frequency of Image Scores Given Bird Scores Per Image')
+	plt.xlabel('Bird Prompt Scores')
+	plt.ylabel('Image Prompt Scores')
+	plt.tight_layout()
+	plt.show()
+
 def human_human_agreement(A, hscore_distro):
 		###############################################################################
 	## Plot human-human agreement
@@ -209,50 +325,6 @@ def human_human_agreement(A, hscore_distro):
 	plt.tight_layout()
 	plt.show()
 
-def human_human_pairs(A):
-	## Plot frequency of human-human score pairs
-	allscores = np.zeros((7,7))
-	
-	# Go through all image pairs
-	for img in A.image_dict.keys():
-		# Check if the image pair was shown to someone for both prompts
-		prompts = np.array(A.image_dict[img]['prompts'])
-		scores = np.array(A.image_dict[img]['scores'])
-		if 'birds' in prompts and 'images' in prompts:
-			# Count each pair of scores
-			idx_b = np.argwhere(prompts=='birds')
-			idx_i = np.argwhere(prompts=='images')
-			for b in idx_b:
-				sb = scores[b]
-				for i in idx_i:
-					si = scores[i]
-					allscores[sb-1, si-1] += 1
-	
-	allscores_normalized = allscores/sum(allscores)
-	
-	# Plot
-	xs = []
-	ys = []
-	size = []
-	colors = []
-	for x in range(7):
-		for y in range(7):
-			xs.append(x+1)
-			ys.append(y+1)
-			size.append(2000*allscores_normalized[x, y]) 
-			if x == y:
-				colors.append('r')
-			else:
-				colors.append('b')
-
-	plt.figure()
-	plt.scatter(xs,ys,s=size, c=colors)
-	plt.title('Image Scores by Prompt')
-	plt.xlabel('Bird Prompt Scores')
-	plt.ylabel('Image Prompt Scores')
-	plt.tight_layout()
-	plt.show()
-	
 def human_network_agreement_combined(A, hscore_distro):
 	###############################################################################
 	## Plot human-network agreement - all networks together
@@ -319,7 +391,7 @@ def human_network_agreement_combined(A, hscore_distro):
 	x = np.arange(1.,8)
 	plt.bar(x, agree_b/total_b, width=0.25, label='Bird Prompt')
 	plt.bar(x+0.25, agree_i/total_i, width=0.25, label='Image Prompt')
-	plt.title('Human-Network Agreement By Prompt')
+	plt.title('Human-Network Agreement By Prompt (Avg over all networks)')
 	plt.xlabel('Score (Least to Most Similar)')
 	plt.ylabel('Frequency of Human Agreement')
 	plt.legend()
@@ -331,116 +403,118 @@ def human_network_agreement_separate(A, hscore_distro):
 	## Plot human-network agreement - one network at a time
 	############################################################################### 
 
-	scoretype = 'vgg_l28_kl'
-	network_description = 'VGG16 L28 KL'
+	for scoretype in sorted(A.cnn_layers):
+		namesplit = scoretype.split('_')
+		namesplit[0] = namesplit[0].upper()
+		network_description = ' '.join(namesplit)
 
-	# TRUE AGREEMENT
-	# Continuously draw an image pair from the human score distribution and
-	# count the agreement
-	agree0_b = np.zeros(7) 
-	agree0_i = np.zeros(7)
-	agree1_b = np.zeros(7)
-	agree1_i = np.zeros(7)
-	agree2_b = np.zeros(7)
-	agree2_i = np.zeros(7)
+		# TRUE AGREEMENT
+		# Continuously draw an image pair from the human score distribution and
+		# count the agreement
+		agree0_b = np.zeros(7) 
+		agree0_i = np.zeros(7)
+		agree1_b = np.zeros(7)
+		agree1_i = np.zeros(7)
+		agree2_b = np.zeros(7)
+		agree2_i = np.zeros(7)
 
-	total_b = np.zeros(7)
-	total_i = np.zeros(7)
+		total_b = np.zeros(7)
+		total_i = np.zeros(7)
 
-	for i in range(10000):
-		# Randomly select score from human distribution
-		s = np.random.choice(np.arange(1,8), p=hscore_distro)
+		for i in range(10000):
+			# Randomly select score from human distribution
+			s = np.random.choice(np.arange(1,8), p=hscore_distro)
+			
+			# Randomly select an entry index (i.e. image pair)
+			idx = np.random.choice(range(len(A.scores_dict[s]['prompts'])))
+
+			# Get the prompt and CNN score
+			prompt = A.scores_dict[s]['prompts'][idx]
+			cnn_score = 1 - A.scores_dict[s]['cnn_scores'][scoretype][idx]
+			cnn_bin = int(np.floor(7*cnn_score) + 1)
+			if cnn_bin == 8:	# Edge case where the network score was highest possible
+				cnn_bin -=	1
+
+			if prompt == 'birds':
+				if cnn_bin == s:        # Scores match exactly
+					agree0_b[cnn_bin-1] += 1
+				if abs(cnn_bin - s) < 2:
+					agree1_b[cnn_bin-1] += 1
+				if abs(cnn_bin - s) < 3:
+					agree2_b[cnn_bin-1] += 1
+
+				total_b[cnn_bin-1] += 1
+
+			else:   # Prompt is 'images'
+				if cnn_bin == s:        # Scores match exactly
+					agree0_i[cnn_bin-1] += 1
+				if abs(cnn_bin - s) < 2:
+					agree1_i[cnn_bin-1] += 1
+				if abs(cnn_bin - s) < 3:
+					agree2_i[cnn_bin-1] += 1
+
+				total_i[cnn_bin-1] += 1
+			
+
+		x = np.arange(1., 8)
+
+		# Plot bird agreement over a few bins
+		plt.figure()
+		total = total_b + total_i
+		plt.bar(x, (agree0_b+agree0_i)/(total_i+total_b), width=0.2, label='Agree Exactly')
+		plt.bar(x+0.2, (agree1_b+agree1_i)/(total_i+total_b), width=0.2, label='Agree Within 1 Bin')
+		plt.bar(x+0.4, (agree2_b+agree2_i)/(total_i+total_b), width=0.2, label='Agree Within 2 Bins')
+
+		plt.title('Human-' + network_description + ' Agreement')
+		plt.xlabel('Score (Least to Most Similar)')
+		plt.ylabel('Frequency of Human Agreement')
+		plt.legend()
+		plt.tight_layout()
+		plt.show()
+
+		# CHANCE AGREEMENT
+		agree_chance = np.zeros(7)
+		total_chance = np.zeros(7)
+		# For each image, select a chance 'human' image pair score 
+		for i in range(10000):
+
+			# Draw 2 scores from the score distributions
+			s1 = np.random.choice(np.arange(1,8), p=hscore_distro)					# Human
+			s2 = np.random.choice(np.arange(1,8), p=cnnscore_distro[scoretype])		# Network
+					# cnnscore_distro is already inverted to be from least to most similar
+
+			# If the person and network have the same score, update the distribution
+			if s1 == s2:
+				agree_chance[s2-1] += 1
+			total_chance[s2-1] += 1
+
+
+
+		## Plot true vs chance agreement
+		x = np.arange(1., 8)
+		plt.figure()
+		plt.bar(x, (agree0_b+agree0_i)/(total_b+total_i), width=0.2, label='True agreement')
+		plt.bar(x+0.2, agree_chance/total_chance, width=0.2, label='Chance agreement')
 		
-		# Randomly select an entry index (i.e. image pair)
-		idx = np.random.choice(range(len(A.scores_dict[s]['prompts'])))
-
-		# Get the prompt and CNN score
-		prompt = A.scores_dict[s]['prompts'][idx]
-		cnn_score = 1 - A.scores_dict[s]['cnn_scores'][scoretype][idx]
-		cnn_bin = int(np.floor(7*cnn_score) + 1)
-		if cnn_bin == 8:	# Edge case where the network score was highest possible
-			cnn_bin -=	1
-
-		if prompt == 'birds':
-			if cnn_bin == s:        # Scores match exactly
-				agree0_b[cnn_bin-1] += 1
-			if abs(cnn_bin - s) < 2:
-				agree1_b[cnn_bin-1] += 1
-			if abs(cnn_bin - s) < 3:
-				agree2_b[cnn_bin-1] += 1
-
-			total_b[cnn_bin-1] += 1
-
-		else:   # Prompt is 'images'
-			if cnn_bin == s:        # Scores match exactly
-				agree0_i[cnn_bin-1] += 1
-			if abs(cnn_bin - s) < 2:
-				agree1_i[cnn_bin-1] += 1
-			if abs(cnn_bin - s) < 3:
-				agree2_i[cnn_bin-1] += 1
-
-			total_i[cnn_bin-1] += 1
+		plt.title('Human-' + network_description + ' Agreement')
+		plt.xlabel('Score (Least to Most Similar)')
+		plt.ylabel('Frequency of Human Agreement')
+		plt.legend()
+		plt.tight_layout()
+		plt.show()
 		
+		## Plot human-network agreement by prompt 
+		plt.figure()
+		plt.bar(x, agree0_b/total_b, width=0.2, label='Bird Prompt')
+		plt.bar(x+0.2, agree0_i/total_i, width=0.2, label='Image Prompt')
+		plt.bar(x+0.4, agree_chance/total_chance, width=0.2, label='Agree By Chance')
 
-	x = np.arange(1., 8)
-
-	# Plot bird agreement over a few bins
-	plt.figure()
-	total = total_b + total_i
-	plt.bar(x, (agree0_b+agree0_i)/(total_i+total_b), width=0.2, label='Agree Exactly')
-	plt.bar(x+0.2, (agree1_b+agree1_i)/(total_i+total_b), width=0.2, label='Agree Within 1 Bin')
-	plt.bar(x+0.4, (agree2_b+agree2_i)/(total_i+total_b), width=0.2, label='Agree Within 2 Bins')
-
-	plt.title('Human-' + network_description + ' Agreement')
-	plt.xlabel('Score (Least to Most Similar)')
-	plt.ylabel('Frequency of Human Agreement')
-	plt.legend()
-	plt.tight_layout()
-	plt.show()
-
-	# CHANCE AGREEMENT
-	agree_chance = np.zeros(7)
-	total_chance = np.zeros(7)
-	# For each image, select a chance 'human' image pair score 
-	for i in range(10000):
-
-		# Draw 2 scores from the score distributions
-		s1 = np.random.choice(np.arange(1,8), p=hscore_distro)					# Human
-		s2 = np.random.choice(np.arange(1,8), p=cnnscore_distro[scoretype])		# Network
-				# cnnscore_distro is already inverted to be from least to most similar
-
-		# If the person and network have the same score, update the distribution
-		if s1 == s2:
-			agree_chance[s2-1] += 1
-		total_chance[s2-1] += 1
-
-
-
-	## Plot true vs chance agreement
-	x = np.arange(1., 8)
-	plt.figure()
-	plt.bar(x, (agree0_b+agree0_i)/(total_b+total_i), width=0.2, label='True agreement')
-	plt.bar(x+0.2, agree_chance/total_chance, width=0.2, label='Chance agreement')
-	
-	plt.title('Human-' + network_description + ' Agreement (P(H ^ N | N))')
-	plt.xlabel('Score (Least to Most Similar)')
-	plt.ylabel('Frequency of Human Agreement')
-	plt.legend()
-	plt.tight_layout()
-	plt.show()
-	
-	## Plot human-network agreement by prompt 
-	plt.figure()
-	plt.bar(x, agree0_b/total_b, width=0.2, label='Bird Prompt')
-	plt.bar(x+0.2, agree0_i/total_i, width=0.2, label='Image Prompt')
-	plt.bar(x+0.4, agree_chance/total_chance, width=0.2, label='Agree By Chance')
-
-	plt.title('Human-' + network_description + ' Agreement By Prompt')
-	plt.xlabel('Score (Least to Most Similar)')
-	plt.ylabel('Frequency of Human Agreement')
-	plt.legend()
-	plt.tight_layout()
-	plt.show()	
+		plt.title('Human-' + network_description + ' Agreement By Prompt')
+		plt.xlabel('Score (Least to Most Similar)')
+		plt.ylabel('Frequency of Human Agreement')
+		plt.legend()
+		plt.tight_layout()
+		plt.show()	
 	
 def human_network_pairs(A):
 	###############################################################################
@@ -486,8 +560,9 @@ def human_network_pairs(A):
 if __name__ == "__main__":
 	participant_data_files = os.getcwd() + '/data/'
 	feature_path = os.getcwd() + '/features/'
-	network_labels_path = 'C:/Users/noam_/Documents/Cornell/CS7999/novelty-detection/alexnet_inat_results/Aves/'
+	network_labels_path = 'C:/Users/noam_/Documents/Cornell/CS7999/novelty-detection/'
 
+	# List of all network 
 	networks = ['alexnet_conv_1',
 				'alexnet_conv_2',
 				'alexnet_conv_3',
@@ -497,13 +572,18 @@ if __name__ == "__main__":
 				'vgg16_block_2',
 				'vgg16_block_3',
 				'vgg16_block_4',
-				'vgg16_block_5'
+				'vgg16_block_5',
+				'resnet18_block_1',
+				'resnet18_block_2',
+				'resnet18_block_3',
+				'resnet18_block_4',
+				'resnet18_block_5'
 				]         
 
 	A = Analysis(feature_path, participant_data_files, network_labels_path)
-	A.calc_cnn_scores(networks)         # Only needs to be done once  -
+	# A.calc_cnn_scores(networks)         # Only needs to be done once  -
 										# this makes a copy of your data files with the normalized network distance scores
-	"""
+	
 	A.make_partic_dict()
 	A.make_scores_dict()
 	A.make_image_dict()
@@ -513,16 +593,15 @@ if __name__ == "__main__":
 	############################################################################### 
 	
 	# Score distributions
-	hscore_distro = human_score_distro(A, plot=False)
-	cnnscore_distro = network_score_distro(A, plot=False)
+	# hscore_distro = human_score_distro(A, plot=False)
+	cnnscore_distro = network_score_distro(A, plot=True)		# The result is the cnn score distro in bins 1-7
 
 	# Human-human agreement and trends
 	# human_human_pairs(A)
 	# human_human_agreement(A, hscore_distro)
+	# response_time(A)
 
 	# Human-network agreement and trends
 	# human_network_agreement_combined(A, hscore_distro)
-	human_network_agreement_separate(A, hscore_distro)
+	# human_network_agreement_separate(A, hscore_distro)
 	# human_network_pairs(A)
-
-	"""
