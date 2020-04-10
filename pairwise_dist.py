@@ -1,8 +1,10 @@
 """Compute pairwise distances between images at input path"""
 
 import json
+
 import numpy as np
 import torch
+
 
 def compute_euc(im1_path, im2_path):
     """

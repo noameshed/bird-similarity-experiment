@@ -31,7 +31,7 @@ class Analysis():
 
         # Create dictionary by score
         self.scores_dict = {}   #   Format:
-                                #     { score (0-7)     : {
+                                #     { score (1-7)     : {
                                 #         'image_pairs' : <np array>
                                 #         'prompts'     : <np array>
                                 #         'cnn_scores'  : <dictionary of scores> }
