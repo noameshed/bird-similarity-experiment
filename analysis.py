@@ -185,9 +185,8 @@ class Analysis():
 
             # Store the image pair key   
             pairs = []
-            for row in pdata[0:2]:
+            for i,row in pdata.iterrows():
                 pairs.append(self.make_key(row))
-
             self.partic_dict[ID]['image_pairs'] = np.array(pairs)[15:]
 
             # Store the normalized CNN scores for each layer
