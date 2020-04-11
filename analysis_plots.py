@@ -201,8 +201,13 @@ def human_human_pairs(A):
 	# Compute correlation between bird and image prompt
 	corr = pearsonr(birdscores, imagescores)
 	print('Correlation:', corr)	
-	
-	allscores_normalized = allscores/sum(allscores)	#np.sum(allscores) gets sum of entire matrix
+	print(allscores)
+	print(np.sum(allscores, axis=1))
+	# allscores_normalized = allscores/np.sum(allscores, axis=0)
+	allscores_normalized = (allscores.T/np.sum(allscores, axis=1)).T	#np.sum(allscores) gets sum of entire matrix
+							# axis=0 gives bird sums (vertical)
+							# axis=1 gives image sums (horizontal)
+	print(allscores_normalized)
 	
 	# Plot
 	xs = []
@@ -221,7 +226,7 @@ def human_human_pairs(A):
 
 	plt.figure()
 	plt.scatter(xs,ys,s=size, c=colors)
-	plt.title('Frequency of Image Scores Given Bird Scores Per Image')
+	plt.title('Conditional Probability of Bird Scores Given Image Scores')
 	plt.xlabel('Bird Prompt Scores')
 	plt.ylabel('Image Prompt Scores')
 	plt.tight_layout()
@@ -615,6 +620,146 @@ def vis_agreement_pairs(A):
 			fname = pair.replace('/','_') + '.jpg'
 			newim.save(savepath + fname)
 
+def novelty(A, species_data):
+	"""
+	Some analysis taking into account whether the network was trained
+	on the image class or not 
+	"""
+	imagenet = np.array(species_data['in imagenet'])
+	cub = np.array(species_data['in cub'])
+	species = np.array(species_data['name'])
+
+	# Only look at species not in CUB training set
+	good_idx = np.argwhere(cub == 'No')
+	
+	in_imagenet = species[np.argwhere(imagenet[good_idx] == 'Yes')][:,0]
+	notin_imagenet = species[np.argwhere(imagenet[good_idx] == 'No')][:,0]
+
+	print('Species In ImageNet (not in CUB):', len(in_imagenet), '\nNot in ImageNet:',len(notin_imagenet))
+	"""
+	## Plot network scores stratified by whether the image is in imagenet or not
+	colors_in = ['darkred', 'green','blue']
+	colors_notin = ['salmon', 'springgreen', 'cornflowerblue']
+	for i,net in enumerate(['alexnet', 'vgg16', 'resnet']):
+		# plt.figure()
+		x_in = []
+		x_notin = []
+		y_in = []
+		y_notin = []
+
+		# Collect all scores for all image pairs
+		for p in A.image_dict.keys():
+			
+			for layer in A.image_dict[p]['cnn_scores']:
+				if 'euc' in layer:
+					continue
+				if net in layer:
+					num = layer.split('_')[-1]		# network name is <net>_<block/conv>_<num>
+					if num == 'output':
+						num = 6
+
+					# Get network score
+					s = 1 - A.image_dict[p]['cnn_scores'][layer]
+
+					# Get species information
+					im1 = p.split('_')[0]
+					im2 = p.split('_')[1]
+
+					spec1 = im1.split('/')[0]
+					spec2 = im2.split('/')[0]
+
+					# print(spec1 in in_imagenet and spec2 in in_imagenet)
+					if spec1 in in_imagenet and spec2 in in_imagenet:
+						x_in.append(s)	# invert score
+						y_in.append(int(num))
+					elif spec1 in notin_imagenet and spec2 in notin_imagenet:
+						x_notin.append(s)	# invert score
+						y_notin.append(int(num))
+		
+		# Both images are in ImageNet
+		y_in += np.random.uniform(low=-.2, high=0.2, size=len(y_in))
+		plt.scatter(x_in, y_in, c=colors_in[i], s=1, label='Both In ImageNet')
+
+		# Both images are not in ImageNet
+		y_notin += np.random.uniform(low=-.2, high=0.2, size=len(y_notin))
+		plt.scatter(x_notin, y_notin+0.4, c=colors_notin[i], s=1, label='Neither In ImageNet')
+
+		netname = net.split('_')[0].capitalize()
+		plt.title('Score Distribution for ' + netname, fontsize=14)
+		plt.xlabel('Score (Least to Most Similar)', fontsize=12)
+		plt.ylabel('Network Layer', fontsize=12)
+		plt.yticks(ticks=np.arange(6)+1, labels=['1','2','3','4','5','output'], fontsize=10)
+		plt.legend(loc='upper left')
+		plt.tight_layout()
+		plt.show()
+	"""
+
+
+	# Plot human-network score pairs based on whether or not the species is in imagenet
+	w=0.1
+	for scoretype in A.cnn_layers:
+
+		# Congregate data for all participants
+		# x axis = human scores
+		# y axis = network scores
+		x_in = []
+		x_onein = []
+		x_notin = []
+		y_in = []
+		y_onein = []
+		y_notin = []
+
+		# Split participant data and cnn data by prompt
+		for part in A.partic_dict.keys():
+
+			imgs = [i.split('_') for i in A.partic_dict[part]['image_pairs']]
+
+			spec1 = np.array([i[0].split('/')[0] for i in imgs])
+			spec2 = np.array([i[1].split('/')[0] for i in imgs])
+
+			hscores = list(A.partic_dict[part]['hscores'])                      # Human Scores
+			cscores = list(1 - A.partic_dict[part]['cnn_scores'][scoretype])      # Network Scores (inverted)
+
+			for i in range(len(spec1)):
+
+				# If both species in imagenet, add to list
+				if spec1[i] in in_imagenet and spec2[i] in in_imagenet:
+					x_in.append(hscores[i])
+					y_in.append(cscores[i])
+
+				# If exactly one species in imagenet, add to list
+				elif ((spec1[i] in in_imagenet and spec2[i] in notin_imagenet) or
+					 (spec1[i] in notin_imagenet and spec2[i] in in_imagenet)):
+					x_onein.append(hscores[i])
+					y_onein.append(cscores[i])
+
+				# If neither species in imagenet, add to list
+				elif spec1[i] in notin_imagenet and spec2[i] in notin_imagenet:
+					x_notin.append(hscores[i])
+					y_notin.append(cscores[i])
+
+		
+		# Add some jitter to the scores to make them easier to see
+		x_in += np.random.uniform(low=-w, high=w, size=len(x_in))
+		x_onein += np.random.uniform(low=-w, high=w, size=len(x_onein))
+		x_notin += np.random.uniform(low=-w, high=w, size=len(x_notin))
+
+		plt.figure()
+		plt.xticks(ticks=np.arange(1,8), labels=np.arange(1,8), fontsize=10)
+		plt.scatter(x_in+2*w, y_in, label='Both in ImageNet', c='b', marker='.', s=10)
+		plt.scatter(x_onein, y_onein, label='One in ImageNet', c='g', marker='.',s=10)
+		plt.scatter(x_notin-2*w, y_notin, label='Neither in ImageNet', c='r', marker='.', s=10)
+		plt.title('Network (' + scoretype +') vs Human Scores by Relationship to ImageNet', fontsize=12)
+		plt.xlabel('Human Scores (Least to Most Similar)', fontsize=10)
+		
+		plt.yticks(fontsize=10)
+		plt.ylabel('Normalized Network Scores (Least to Most Similar)', fontsize=10)
+		plt.legend(loc='lower right')
+		plt.tight_layout()
+		plt.show()
+
+
+
 if __name__ == "__main__":
 	participant_data_files = os.getcwd() + '/data/'
 	feature_path = os.getcwd() + '/features/'
@@ -655,12 +800,16 @@ if __name__ == "__main__":
 	cnnscore_distro = network_score_distro(A, plot=False)		# The result is the cnn score distro in bins 1-7
 
 	# Human-human agreement and trends
-	# human_human_pairs(A)
-	# human_human_agreement(A, hscore_distro)
-	# response_time(A)
+	human_human_pairs(A)
+	human_human_agreement(A, hscore_distro)
+	response_time(A)
 
 	# Human-network agreement and trends
-	# human_network_agreement_combined(A, hscore_distro)
-	# human_network_agreement_separate(A, hscore_distro)
-	# human_network_pairs(A)
+	human_network_agreement_combined(A, hscore_distro)
+	human_network_agreement_separate(A, hscore_distro)
+	human_network_pairs(A)
 	vis_agreement_pairs(A)
+
+	# Analysis based on network correctness
+	df = pd.read_csv(os.getcwd() + '/test_species.csv', encoding="ISO-8859-1")
+	novelty(A, df)
