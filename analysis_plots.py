@@ -52,8 +52,9 @@ def human_score_distro(A, plot=False):
 	
 	if plot:
 		plt.figure()
-		plt.bar(np.arange(len(score_bird))-.25, score_bird/sum(score_bird),     width=.25, label='Bird Prompt',  color='b')
-		plt.bar(np.arange(len(score_bird)),     score_image/sum(score_image),   width=.25, label='Image Prompt', color='r')
+		plt.bar(np.arange(len(score_bird))-.5, score_bird/sum(score_bird),     width=.25, label='Bird Prompt',  color='r')
+		plt.bar(np.arange(len(score_bird))-0.25,     score_image/sum(score_image),   width=.25, label='Image Prompt', color='b')
+		plt.bar(np.arange(len(score_bird)), hscore_distro, width=.25, label='Average', color='mediumorchid')
 		plt.xticks(np.arange(len(score_bird))-.25, range(1,1+len(score_bird)))
 		plt.title('Distribution of Human Scores by Prompt')
 		plt.xlabel('Score (Least to Most Similar)')
@@ -340,15 +341,15 @@ def human_network_agreement_combined(A, hscore_distro):
 	############################################################################### 
 
 	# plt.figure()
-	x = np.arange(1.,8)
+	
 	w = 0.05
-
 	agree_b = np.zeros(7)
 	total_b = np.zeros(7)
 	agree_i = np.zeros(7)
 	total_i = np.zeros(7)
 	for net in ['alexnet','vgg16','resnet']:
 		plt.figure()
+		x = np.arange(1.,8) - w*(3)
 		for scoretype in sorted(A.cnn_layers):
 			if net in scoretype and 'euc' not in scoretype:
 				agree = np.zeros(7)
@@ -371,10 +372,10 @@ def human_network_agreement_combined(A, hscore_distro):
 
 					if cnn_bin == s:        # Scores match exactly
 						agree[cnn_bin-1] += 1
-					if abs(cnn_bin - s) < 2:
-						agree[cnn_bin-1] += 1
-					if abs(cnn_bin - s) < 3:
-						agree[cnn_bin-1] += 1
+					# if abs(cnn_bin - s) < 2:
+					# 	agree[cnn_bin-1] += 1
+					# if abs(cnn_bin - s) < 3:
+					# 	agree[cnn_bin-1] += 1
 					total[cnn_bin-1] += 1
 
 					if prompt == 'birds':
@@ -631,6 +632,7 @@ def novelty(A, species_data):
 
 	# Only look at species not in CUB training set
 	good_idx = np.argwhere(cub == 'No')
+	# good_idx = np.arange(len(imagenet))
 	
 	in_imagenet = species[np.argwhere(imagenet[good_idx] == 'Yes')][:,0]
 	notin_imagenet = species[np.argwhere(imagenet[good_idx] == 'No')][:,0]
@@ -638,8 +640,8 @@ def novelty(A, species_data):
 	print('Species In ImageNet (not in CUB):', len(in_imagenet), '\nNot in ImageNet:',len(notin_imagenet))
 	"""
 	## Plot network scores stratified by whether the image is in imagenet or not
-	colors_in = ['darkred', 'green','blue']
-	colors_notin = ['salmon', 'springgreen', 'cornflowerblue']
+	colors_in = ['darkred', 'darkgreen','midnightblue']
+	colors_notin = ['lightsalmon', 'mediumaquamarine', 'cornflowerblue']
 	for i,net in enumerate(['alexnet', 'vgg16', 'resnet']):
 		# plt.figure()
 		x_in = []
@@ -678,11 +680,11 @@ def novelty(A, species_data):
 		
 		# Both images are in ImageNet
 		y_in += np.random.uniform(low=-.2, high=0.2, size=len(y_in))
-		plt.scatter(x_in, y_in, c=colors_in[i], s=1, label='Both In ImageNet')
+		plt.scatter(x_in, y_in, c=colors_in[i], s=1, label='Both Known')
 
 		# Both images are not in ImageNet
 		y_notin += np.random.uniform(low=-.2, high=0.2, size=len(y_notin))
-		plt.scatter(x_notin, y_notin+0.4, c=colors_notin[i], s=1, label='Neither In ImageNet')
+		plt.scatter(x_notin, y_notin+0.4, c=colors_notin[i], s=1, label='Both Novel')
 
 		netname = net.split('_')[0].capitalize()
 		plt.title('Score Distribution for ' + netname, fontsize=14)
@@ -692,9 +694,9 @@ def novelty(A, species_data):
 		plt.legend(loc='upper left')
 		plt.tight_layout()
 		plt.show()
+	
+
 	"""
-
-
 	# Plot human-network score pairs based on whether or not the species is in imagenet
 	w=0.1
 	for scoretype in A.cnn_layers:
@@ -746,10 +748,10 @@ def novelty(A, species_data):
 
 		plt.figure()
 		plt.xticks(ticks=np.arange(1,8), labels=np.arange(1,8), fontsize=10)
-		plt.scatter(x_in+2*w, y_in, label='Both in ImageNet', c='b', marker='.', s=10)
-		plt.scatter(x_onein, y_onein, label='One in ImageNet', c='g', marker='.',s=10)
-		plt.scatter(x_notin-2*w, y_notin, label='Neither in ImageNet', c='r', marker='.', s=10)
-		plt.title('Network (' + scoretype +') vs Human Scores by Relationship to ImageNet', fontsize=12)
+		plt.scatter(x_in+2*w, y_in, label='Both Known', c='b', marker='.', s=8)
+		plt.scatter(x_onein, y_onein, label='One Known', c='g', marker='.',s=8)
+		plt.scatter(x_notin-2*w, y_notin, label='Both Novel', c='r', marker='.', s=8)
+		plt.title('Network (' + scoretype +') vs Human Scores - Novelty', fontsize=12)
 		plt.xlabel('Human Scores (Least to Most Similar)', fontsize=10)
 		
 		plt.yticks(fontsize=10)
@@ -757,6 +759,7 @@ def novelty(A, species_data):
 		plt.legend(loc='lower right')
 		plt.tight_layout()
 		plt.show()
+	
 
 
 
@@ -800,15 +803,15 @@ if __name__ == "__main__":
 	cnnscore_distro = network_score_distro(A, plot=False)		# The result is the cnn score distro in bins 1-7
 
 	# Human-human agreement and trends
-	human_human_pairs(A)
-	human_human_agreement(A, hscore_distro)
-	response_time(A)
+	# human_human_pairs(A)
+	# human_human_agreement(A, hscore_distro)
+	# response_time(A)
 
 	# Human-network agreement and trends
-	human_network_agreement_combined(A, hscore_distro)
-	human_network_agreement_separate(A, hscore_distro)
-	human_network_pairs(A)
-	vis_agreement_pairs(A)
+	# human_network_agreement_combined(A, hscore_distro)
+	# human_network_agreement_separate(A, hscore_distro)
+	# human_network_pairs(A)
+	# vis_agreement_pairs(A)
 
 	# Analysis based on network correctness
 	df = pd.read_csv(os.getcwd() + '/test_species.csv', encoding="ISO-8859-1")
