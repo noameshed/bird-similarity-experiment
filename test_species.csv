@@ -1,0 +1,57 @@
+,name,common name,in imagenet,in cub
+0,Ardea alba,Great white heron,No,No
+1,Melanerpes carolinus,Red-bellied woodpecker,No,No
+2,Cacatua galerita,sulphur-crested_cockatoo,Yes,No
+3,Phoebastria nigripes,Black-footed albatross,No,No
+4,Egretta caerulea,little_blue_heron,Yes,No
+5,Calidris pusilla,Semipalmated sandpiper,No,No
+6,Pavo cristatus,Peacock,Yes,No
+7,Megaceryle torquata,Ringed kingfisher,No,Yes
+8,Amazona viridigenalis,Red-crowned parrot,No,No
+9,Anas cyanoptera,Cinnamon teal,No,No
+10,Passerina cyanea,indigo_bunting,Yes,Yes
+11,Hydroprogne caspia,Caspian tern,No,No
+12,Megascops kennicottii,Western screech-owl,No,No
+13,Sitta pusilla,Brown-headed nuthatch,No,No
+14,Aulacorhynchus prasinus,Northern emerald-toucanet,No,No
+15,Bonasa umbellus,ruffed_grouse,Yes,No
+16,Balearica regulorum,Grey-crowned crane,No,No
+17,Mergus serrator,red-breasted_merganser,Yes,Yes
+18,Tringa totanus,redshank,Yes,No
+19,Cygnus atratus,black_swan,Yes,No
+20,Cinclus mexicanus,water_ouzel,Yes,No
+21,Elanoides forficatus,Swallow-tailed kite,No,No
+22,Phalacrocorax penicillatus,Brandt’s cormorant,No,No
+23,Haemorhous mexicanus,house_finch,Yes,No
+24,Larus argentatus,Herring gull,No,Yes
+25,Merops orientalis,Green bee-eater,No,No
+26,Carduelis carduelis,goldfinch,Yes,Yes
+27,Ciconia ciconia,white_stork,Yes,No
+28,Larus marinus,Great black-backed gull,No,No
+29,Contopus pertinax,Greater pewee,No,No
+30,Columbina talpacoti,Ruddy ground dove,No,No
+31,Erithacus rubecula,robin,Yes,No
+32,Gallus gallus domesticus,cock,Yes,No
+33,Campylorhynchus rufinucha,Rufous-naped wren,No,No
+34,Fulica americana,American_coot,Yes,No
+35,Struthio camelus,ostrich,Yes,No
+36,Mimus gilvus,Tropical mockingbird,No,No
+37,Strix nebulosa,great_grey_owl,Yes,No
+38,Vanellus chilensis,Southern lapwing,No,No
+39,Gallinula chloropus,European_gallinule,Yes,No
+40,Coccyzus erythropthalmus,Black-billed cuckoo,No,No
+41,Sphyrapicus nuchalis,Red-naped sapsucker,No,No
+42,Fringilla montifringilla,brambling,Yes,No
+43,Haliaeetus leucocephalus,bald_eagle,Yes,No
+44,Calidris alpina,red-backed_sandpiper,Yes,No
+45,Arenaria interpres,ruddy_turnstone,Yes,No
+46,Myiarchus crinitus,Great-crested flycatcher,No,Yes
+47,Gallus gallus,cock,Yes,No
+48,Aramus guarauna,limpkin,Yes,No
+49,Cyanocitta cristata,Blue jay,No,No
+50,Accipiter cooperii,Cooper's hawk,No,No
+51,Scolopax minor,American woodcock,No,No
+52,Rupornis magnirostris,Roadside hawk,No,No
+53,Vanellus vanellus,Northern lapwing,No,No
+54,Patagioenas flavirostris,Red-billed pigeon,No,No
+55,Anhinga novaehollandiae,Australasian darter,No,No
