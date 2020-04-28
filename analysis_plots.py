@@ -420,6 +420,8 @@ def human_network_agreement_separate(A, hscore_distro, species_data):
 	total_in = np.zeros(7)
 	avg_notin = np.zeros(7)
 	total_notin = np.zeros(7)
+	avg_chance_novelty = np.zeros(7)
+	avg_chance_novelty_total = np.zeros(7)
 
 	avg_chance = np.zeros(7)
 	avg_total = np.zeros(7)
@@ -458,7 +460,7 @@ def human_network_agreement_separate(A, hscore_distro, species_data):
 		total_b = np.zeros(7)
 		total_i = np.zeros(7)
 
-		for i in range(100000):
+		for i in range(1000):
 			# Randomly select score from human distribution
 			s = np.random.choice(np.arange(1,8), p=hscore_distro)
 			
@@ -517,24 +519,24 @@ def human_network_agreement_separate(A, hscore_distro, species_data):
 		x = np.arange(1., 8)
 
 		# Plot bird agreement over a few bins
-		# plt.figure()
-		# total = total_b + total_i
-		# plt.bar(x, (agree0_b+agree0_i)/(total_i+total_b), width=0.2, label='Agree Exactly')
-		# plt.bar(x+0.2, (agree1_b+agree1_i)/(total_i+total_b), width=0.2, label='Agree Within 1 Bin')
-		# plt.bar(x+0.4, (agree2_b+agree2_i)/(total_i+total_b), width=0.2, label='Agree Within 2 Bins')
+		plt.figure()
+		total = total_b + total_i
+		plt.bar(x, (agree0_b+agree0_i)/(total_i+total_b), width=0.2, label='Agree Exactly')
+		plt.bar(x+0.2, (agree1_b+agree1_i)/(total_i+total_b), width=0.2, label='Agree Within 1 Bin')
+		plt.bar(x+0.4, (agree2_b+agree2_i)/(total_i+total_b), width=0.2, label='Agree Within 2 Bins')
 
-		# plt.title('Human-' + network_description + ' Agreement')
-		# plt.xlabel('Score (Least to Most Similar)')
-		# plt.ylabel('Frequency of Human Agreement')
-		# plt.legend()
-		# plt.tight_layout()
-		# plt.show()
+		plt.title('Human-' + network_description + ' Agreement')
+		plt.xlabel('Score (Least to Most Similar)')
+		plt.ylabel('Frequency of Human Agreement')
+		plt.legend()
+		plt.tight_layout()
+		plt.show()
 
 		# CHANCE AGREEMENT
 		agree_chance = np.zeros(7)
 		total_chance = np.zeros(7)
 		# For each image, select a chance 'human' image pair score 
-		for i in range(10000):
+		for i in range(1000):
 
 			# Draw 2 scores from the score distributions
 			s1 = np.random.choice(np.arange(1,8), p=hscore_distro)					# Human
@@ -548,32 +550,49 @@ def human_network_agreement_separate(A, hscore_distro, species_data):
 			total_chance[s2-1] += 1
 			avg_chance_total[s2-1] += 1
 
+			# Check for novelty
+			imnames = A.scores_dict[s]['image_pairs'][idx]
+			im1 = imnames.split('_')[0]
+			im2 = imnames.split('_')[1]
+
+			spec1 = im1.split('/')[0]
+			spec2 = im2.split('/')[0]
+
+			if spec1 in in_imagenet and spec2 in in_imagenet:
+				if s1 == s2:
+					avg_chance_novelty[s2-1] += 1
+				avg_chance_novelty_total[s2-1] += 1
+			elif spec1 in notin_imagenet and spec2 in notin_imagenet:
+				if s1 == s2:
+					avg_chance_novelty[s2-1] += 1
+				avg_chance_novelty_total[s2-1] += 1
+
 
 		## Plot true vs chance agreement
 		x = np.arange(1., 8)
-		# plt.figure()
-		# plt.bar(x, (agree0_b+agree0_i)/(total_b+total_i), width=0.2, label='True agreement')
-		# plt.bar(x+0.2, agree_chance/total_chance, width=0.2, label='Chance agreement')
+		plt.figure()
+		plt.bar(x, (agree0_b+agree0_i)/(total_b+total_i), width=0.2, label='True agreement')
+		plt.bar(x+0.2, agree_chance/total_chance, width=0.2, label='Chance agreement')
 		
-		# plt.title('Human-' + network_description + ' Agreement')
-		# plt.xlabel('Score (Least to Most Similar)')
-		# plt.ylabel('Frequency of Human Agreement')
-		# plt.legend()
-		# plt.tight_layout()
-		# plt.show()
+		plt.title('Human-' + network_description + ' Agreement')
+		plt.xlabel('Score (Least to Most Similar)')
+		plt.ylabel('Frequency of Human Agreement')
+		plt.legend()
+		plt.tight_layout()
+		plt.show()
 		
-		## Plot human-network agreement by prompt 
-		# plt.figure()
-		# plt.bar(x, agree0_b/total_b, width=0.2, label='Bird Prompt')
-		# plt.bar(x+0.2, agree0_i/total_i, width=0.2, label='Image Prompt')
-		# plt.bar(x+0.4, agree_chance/total_chance, width=0.2, label='Agree By Chance')
+		# Plot human-network agreement by prompt 
+		plt.figure()
+		plt.bar(x, agree0_b/total_b, width=0.2, label='Bird Prompt')
+		plt.bar(x+0.2, agree0_i/total_i, width=0.2, label='Image Prompt')
+		plt.bar(x+0.4, agree_chance/total_chance, width=0.2, label='Agree By Chance')
 
-		# plt.title('Human-' + network_description + ' Agreement By Prompt')
-		# plt.xlabel('Score (Least to Most Similar)')
-		# plt.ylabel('Frequency of Human Agreement')
-		# plt.legend()
-		# plt.tight_layout()
-		# plt.show()	
+		plt.title('Human-' + network_description + ' Agreement By Prompt')
+		plt.xlabel('Score (Least to Most Similar)')
+		plt.ylabel('Frequency of Human Agreement')
+		plt.legend()
+		plt.tight_layout()
+		plt.show()	
 
 	# Plot average agreement by chance
 	plt.figure()
@@ -589,10 +608,11 @@ def human_network_agreement_separate(A, hscore_distro, species_data):
 	plt.show()	
 
 	# Plot average agreement by novelty
+	print(avg_chance_novelty_total)
 	plt.figure()
 	plt.bar(x, avg_in/total_in, width=0.2, color='r', label='Both Known')
 	plt.bar(x+0.2, avg_notin/total_notin, width=0.2, color='b', label='Both Novel')
-	plt.bar(x+0.4, avg_chance/avg_chance_total, width=0.2, color='grey', label='Agree By Chance')
+	plt.bar(x+0.4, avg_chance_novelty/avg_chance_novelty_total, width=0.2, color='grey', label='Agree By Chance')
 	plt.title('Average Human-Network Agreement By Novelty')
 	plt.xlabel('Score (Least to Most Similar)')
 	plt.ylabel('Human-Network Agreement')
@@ -601,7 +621,6 @@ def human_network_agreement_separate(A, hscore_distro, species_data):
 	plt.legend()
 	plt.tight_layout()
 	plt.show()
-
 	
 def human_network_pairs(A):
 	###############################################################################
@@ -701,6 +720,7 @@ def novelty(A, species_data):
 	Some analysis taking into account whether the network was trained
 	on the image class or not 
 	"""
+	#TODO: Incorporate the 'novelty' part of the image dict for all sections of this analysis
 	imagenet = np.array(species_data['in imagenet'])
 	cub = np.array(species_data['in cub'])
 	species = np.array(species_data['name'])
@@ -778,7 +798,7 @@ def novelty(A, species_data):
 	#####################################################################################
 	# Plot human-network score pairs based on whether or not the species is in imagenet #
 	#####################################################################################
-
+	"""
 	for scoretype in A.cnn_layers:
 
 		if 'alexnet' not in scoretype or 'euc' in scoretype:
@@ -845,7 +865,7 @@ def novelty(A, species_data):
 
 	
 		# Plot only the average scores
-		"""
+		
 		plt.figure()
 		plt.xticks(ticks=np.arange(1,8), labels=np.arange(1,8), fontsize=10)
 		plt.scatter(x_in+2*w, y_in, label='Both Known', c='b', marker='.', s=8)
@@ -859,7 +879,9 @@ def novelty(A, species_data):
 		plt.legend(loc='lower right')
 		plt.tight_layout()
 		plt.show()
-		"""
+	"""
+
+
 
 
 
@@ -904,6 +926,8 @@ if __name__ == "__main__":
 	hscore_distro = human_score_distro(A, plot=False)
 	cnnscore_distro = network_score_distro(A, plot=False)		# The result is the cnn score distro in bins 1-7
 
+	# TODO: Clean up and split up some of these functions to make them clearer
+
 	# Human-human agreement and trends
 	# human_human_pairs(A)
 	# human_human_agreement(A, hscore_distro)
@@ -911,9 +935,9 @@ if __name__ == "__main__":
 
 	# Human-network agreement and trends
 	# human_network_agreement_combined(A, hscore_distro)
-	human_network_agreement_separate(A, hscore_distro, df)
+	# human_network_agreement_separate(A, hscore_distro, df)
 	# human_network_pairs(A)
 	# vis_agreement_pairs(A)
 
 	# Analysis based on network correctness
-	# novelty(A, df)	
+	novelty(A, df)	
