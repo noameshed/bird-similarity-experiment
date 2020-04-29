@@ -102,8 +102,7 @@ def network_score_distro(A, plot=False):
 			for p in A.image_dict.keys():
 				
 				for layer in A.image_dict[p]['cnn_scores']:
-					if 'euc' in layer:
-						continue
+
 					if net in layer:
 						num = layer.split('_')[-1]		# network name is <net>_<block/conv>_<num>
 						if num == 'output':
@@ -248,24 +247,24 @@ def human_human_agreement(A, hscore_distro):
 	## Method 1, select 10,000 random images
 	
 	for _ in range(10000):
-	    # Randomly select an image
-	    im = np.random.choice(list(A.image_dict.keys()))
-	    scores = A.image_dict[im]['scores']
+		# Randomly select an image
+		im = np.random.choice(list(A.image_dict.keys()))
+		scores = A.image_dict[im]['scores']
 
-	    if len(scores) >= 2:
-	        # Randomly select two scores from that image (if possible)
-	        rands = np.random.choice(scores, size=2, replace=False)
+		if len(scores) >= 2:
+			# Randomly select two scores from that image (if possible)
+			rands = np.random.choice(scores, size=2, replace=False)
 
-	        # If the scores are the same, update distribution
-	        s1 = rands[0]
-	        s2 = rands[1]
-	        if s1 == s2:
-	            agree_true0[s1-1] += 1
-	        if abs(s1-s2) <= 1:         # One-off agreement
-	            agree_true1[s1-1] += 1
-	        if abs(s1-s2) <= 2:         # Two-off agreement
-	            agree_true2[s1-1] += 1
-	        total_true[s1-1] += 1
+			# If the scores are the same, update distribution
+			s1 = rands[0]
+			s2 = rands[1]
+			if s1 == s2:
+				agree_true0[s1-1] += 1
+			if abs(s1-s2) <= 1:         # One-off agreement
+				agree_true1[s1-1] += 1
+			if abs(s1-s2) <= 2:         # Two-off agreement
+				agree_true2[s1-1] += 1
+			total_true[s1-1] += 1
 	
 
 	## Method 2, select 100 images per score and compare to another score of the same image
@@ -440,8 +439,6 @@ def human_network_agreement_separate(A, hscore_distro, species_data):
 	notin_imagenet = species[np.argwhere(imagenet[good_idx] == 'No')][:,0]
 
 	for scoretype in sorted(A.cnn_layers):
-		if 'euc' in scoretype:
-			continue
 
 		namesplit = scoretype.split('_')
 		namesplit[0] = namesplit[0].capitalize()
@@ -737,7 +734,7 @@ def novelty(A, species_data):
 	##############################################################
 
 	print('Species In ImageNet (not in CUB):', len(in_imagenet), '\nNot in ImageNet:',len(notin_imagenet))
-	"""
+	
 	## Plot network scores stratified by whether the image is in imagenet or not
 	colors_in = ['darkred', 'darkgreen','midnightblue']
 	colors_notin = ['lightsalmon', 'mediumaquamarine', 'cornflowerblue']
@@ -752,8 +749,7 @@ def novelty(A, species_data):
 		for p in A.image_dict.keys():
 			
 			for layer in A.image_dict[p]['cnn_scores']:
-				if 'euc' in layer:
-					continue
+
 				if net in layer:
 					num = layer.split('_')[-1]		# network name is <net>_<block/conv>_<num>
 					if num == 'output':
@@ -794,15 +790,12 @@ def novelty(A, species_data):
 		plt.tight_layout()
 		plt.show()
 
-	"""
+	
 	#####################################################################################
 	# Plot human-network score pairs based on whether or not the species is in imagenet #
 	#####################################################################################
-	"""
+	
 	for scoretype in A.cnn_layers:
-
-		if 'alexnet' not in scoretype or 'euc' in scoretype:
-			continue
 
 		# Agregate data for all participants
 		# x axis = human scores
@@ -864,8 +857,8 @@ def novelty(A, species_data):
 		plt.show()
 
 	
-		# Plot only the average scores
-		
+		# Plot only the average score
+		"""
 		plt.figure()
 		plt.xticks(ticks=np.arange(1,8), labels=np.arange(1,8), fontsize=10)
 		plt.scatter(x_in+2*w, y_in, label='Both Known', c='b', marker='.', s=8)
@@ -879,9 +872,327 @@ def novelty(A, species_data):
 		plt.legend(loc='lower right')
 		plt.tight_layout()
 		plt.show()
+		"""
+	
+def species_analysis(A, species_data):
+	"""
+	Extracts statistics about species similarity in human/network choices
 	"""
 
+	#####################################################################################
+	# How often the species is the same for all peoples' scores
+	#####################################################################################
+	same_spec_people = np.zeros(7)
+	total = np.zeros(7)
+	for p in A.image_dict.keys():
 
+		# Get species information
+		im1 = p.split('_')[0]
+		im2 = p.split('_')[1]
+
+		spec1 = im1.split('/')[0]
+		spec2 = im2.split('/')[0]
+
+		for hscore in A.image_dict[p]['scores']:
+			if spec1 == spec2:
+				same_spec_people[hscore-1] += 1
+
+			total[hscore-1] += 1
+
+	print(same_spec_people)
+	print('Same Species for Humans:', same_spec_people/total)
+	# plt.figure()
+	# plt.plot(np.arange(1,8), same_spec_people/total, marker='o', color='r')
+	# plt.title('Same-Species Frequency: Humans')
+	# plt.xlabel('Human Scores')
+	# plt.ylabel('Frequency of Same Species')
+	# plt.xticks(np.arange(1,8), np.arange(1,8))
+	# plt.hlines(np.arange(0,1,0.1), 1, 7, colors='lightgrey', linestyles='dashed', zorder=1, linewidth=0.5)
+	# plt.tight_layout()
+	# plt.show()
+
+	#####################################################################################
+	# How often the species is the same for all networks' scores
+	#####################################################################################
+	same_spec_networks = np.zeros((len(networks), 7))
+	total = np.zeros((len(networks),7))
+	for p in A.image_dict.keys():
+
+		# Get species information
+		im1 = p.split('_')[0]
+		im2 = p.split('_')[1]
+
+		spec1 = im1.split('/')[0]
+		spec2 = im2.split('/')[0]
+
+		for i, j in enumerate(range(len(networks))):
+			n = networks[j]
+			cnn_score = 1. - A.image_dict[p]['cnn_scores'][n]
+			cnn_bin = int(np.floor(7*cnn_score) + 1)
+			if cnn_bin == 8:
+				cnn_bin = 7
+			
+			if spec1 == spec2:
+				same_spec_networks[i, cnn_bin-1] += 1
+
+			total[i,cnn_bin-1] += 1
+
+	# Convert to plottable format
+	# nets, scores = same_spec_networks.shape
+	# xs = []
+	# ys = []
+	# size = []
+	# colors = []
+	# labels = []
+	# cm = plt.cm.get_cmap('RdYlBu')
+	# for y, j in enumerate(np.arange(18)):
+	# 	for x in range(scores):
+			
+	# 		xs.append(x)
+	# 		ys.append(y)
+	# 		size.append(1500*same_spec_networks[y,x]/total[y,x])
+	# 		frac = float(same_spec_networks[y,x]/total[y,x])
+	# 		colors.append(frac)
+
+	# 	labels.append(networks[j])
+			
+	# Scatter Plot
+	# plt.figure()
+	# fig = plt.gcf()
+	# ax = fig.gca()
+
+	# sc = ax.scatter(xs,ys,s=size, c=colors)
+	# sc.set_clim([0, 1])
+	# cb = plt.colorbar(sc)
+	# plt.title('ResNet-18: Fraction of Matching Species')
+	# plt.xlabel('Network Bin Scores')
+	# plt.ylabel('Network Layers')
+	# plt.xticks(np.arange(7), np.arange(1,8))
+	# plt.yticks(np.arange(len(labels)), labels = labels)
+	# plt.tight_layout()
+	# plt.show()
+
+	# Line plot
+	# AlexNet
+	print(networks)
+	same_spec_alex = np.sum(same_spec_networks[:6], axis=0)
+	total_alex = np.sum(total[:6], axis=0)
+	# VGG
+	same_spec_vgg = np.sum(same_spec_networks[6:12], axis=0)
+	total_vgg = np.sum(total[6:12], axis=0)
+	# ResNet
+	same_spec_res = np.sum(same_spec_networks[12:], axis=0)
+	total_resnet = np.sum(total[12:], axis=0)
+	# Average
+	same_spec_avglayer = np.sum(same_spec_networks, axis=0)
+	total_avglayer = np.sum(total, axis=0)
+
+	# plt.figure()
+	# plt.plot(np.arange(1,8), same_spec_alex/total_alex, marker='o', color='r', label='AlexNet')
+	# plt.plot(np.arange(1,8), same_spec_vgg/total_vgg, marker='o', color='purple', label='VGG16')
+	# plt.plot(np.arange(1,8), same_spec_res/total_resnet, marker='o', color='teal', label='ResNet-18')
+	# plt.plot(np.arange(1,8), same_spec_avglayer/total_avglayer, marker='o', color='grey', label='Average')
+	# plt.title('Same-Species Frequency: Networks')
+	# plt.xlabel('Human Scores')
+	# plt.ylabel('Frequency of Same Species')
+	# plt.legend()
+	# plt.xticks(np.arange(1,8), np.arange(1,8))
+	# plt.hlines(np.arange(0,1,0.1), 1, 7, colors='lightgrey', linestyles='dashed', zorder=1, linewidth=0.5)
+	# plt.tight_layout()
+	# plt.show()
+
+	#####################################################################################
+	# When people and networks give the same score, how often are the species the same
+	#####################################################################################
+	same_score = np.zeros(7)
+	total = np.zeros(7)
+	for p in A.image_dict.keys():
+
+		# Get species information
+		im1 = p.split('_')[0]
+		im2 = p.split('_')[1]
+
+		spec1 = im1.split('/')[0]
+		spec2 = im2.split('/')[0]
+
+		for i, j in enumerate(np.arange(18)):
+			n = networks[j]
+			cnn_score = 1. - A.image_dict[p]['cnn_scores'][n]
+			cnn_bin = int(np.floor(7*cnn_score) + 1)
+			if cnn_bin == 8:
+				cnn_bin = 7
+			
+			# Loop through human scores
+			for hscore in A.image_dict[p]['scores']:
+				if hscore == cnn_bin:		# If people and networks agree
+					if spec1 == spec2:		# If species are the same
+						same_score[cnn_bin-1] += 1
+
+					total[cnn_bin-1] += 1
+
+	# plt.figure()
+	# plt.plot(np.arange(1,8), same_score/total, marker='o', color='r')
+	# plt.title('Same-Species Frequency: Human-Network Agreement Average')
+	# plt.xlabel('Scores')
+	# plt.ylabel('Frequency of Same Species')
+	# plt.xticks(np.arange(1,8), np.arange(1,8))
+	# plt.hlines(np.arange(0,1,0.1), 1, 7, colors='lightgrey', linestyles='dashed', zorder=1, linewidth=0.5)
+	# plt.tight_layout()
+	# plt.show()
+
+
+	###################################################################
+	# Split by network layer averages
+	###################################################################
+
+	colors = ['lightcoral','orangered', 'gold','lightgreen','turquoise', 'mediumpurple']
+	layers = ['1','2','3','4','5','output']
+	# plt.figure()
+	for i, l in enumerate(layers):
+		same_score = np.zeros(7)
+		total = np.zeros(7)
+		c = colors[i]
+		for p in A.image_dict.keys():
+
+			# Get species information
+			im1 = p.split('_')[0]
+			im2 = p.split('_')[1]
+
+			spec1 = im1.split('/')[0]
+			spec2 = im2.split('/')[0]
+
+			for i, j in enumerate(np.arange(18)):
+				n = networks[j]
+				if l not in n:
+					continue
+				# if 'resnet' not in n:
+				# 	continue
+
+				cnn_score = 1. - A.image_dict[p]['cnn_scores'][n]
+				cnn_bin = int(np.floor(7*cnn_score) + 1)
+				if cnn_bin == 8:
+					cnn_bin = 7
+				
+				# Loop through human scores
+				for hscore in A.image_dict[p]['scores']:
+					if hscore == cnn_bin:		# If people and networks agree
+						if spec1 == spec2:		# If species are the same
+							same_score[cnn_bin-1] += 1
+
+						total[cnn_bin-1] += 1
+
+		# plt.plot(np.arange(1,8), same_score/total, color=c, marker='o', label=l)
+
+	# plt.title('Same-Species Frequency: Human-Network Agreement by Layer')
+	# plt.xlabel('Scores')
+	# plt.ylabel('Frequency of Same Species')
+	# plt.xticks(np.arange(1,8), np.arange(1,8))
+	# plt.hlines(np.arange(0,1,0.1), 1, 7, colors='lightgrey', linestyles='dashed', zorder=1, linewidth=0.5)
+	# plt.legend()
+	# plt.tight_layout()
+	# plt.show()
+
+	#####################################################################################
+	# How often people and networks give the same score when the species are the same 
+	# and the network has never seen it before
+	#####################################################################################
+
+	same_score_known = np.zeros(7)
+	same_score_novel = np.zeros(7)
+	total_known = np.zeros(7)
+	total_novel = np.zeros(7)
+
+	for p in A.image_dict.keys():
+		# Get species information
+		im1 = p.split('_')[0]
+		im2 = p.split('_')[1]
+
+		spec1 = im1.split('/')[0]
+		spec2 = im2.split('/')[0]
+		# Counting each individual's score
+		
+		for i, j in enumerate(range(len(networks))):
+			n = networks[j]
+			# if 'vgg' not in n:
+			# 	continue
+
+			
+			cnn_score = 1. - A.image_dict[p]['cnn_scores'][n]
+			cnn_bin = int(np.floor(7*cnn_score) + 1)
+			if cnn_bin == 8:
+				cnn_bin = 7
+			
+			# Loop through human scores
+			for hscore in A.image_dict[p]['scores']:
+				if hscore == cnn_bin:		# If people and networks agree
+				
+					# Check novelty respective to the network 
+					# Note ResNet is trained on CUB, the others are trained on ImageNet
+					im1known = ('imagenet' in A.image_dict[p]['novelty']['im1'] and 'resnet' not in n) \
+						or ('cub' in A.image_dict[p]['novelty']['im1'] == 'cub' and 'resnet'  in n)
+					im2known = ('imagenet' in A.image_dict[p]['novelty']['im2'] and 'resnet' not in n) \
+						or ( 'cub' in A.image_dict[p]['novelty']['im2'] == 'cub' and 'resnet'  in n)
+
+					if im1known and im2known:
+						if spec1 == spec2:		# If species are the same
+							same_score_known[cnn_bin-1] += 1
+					total_known[cnn_bin-1] +=1
+					if not im1known and not im2known:
+						if spec1 == spec2:		# If species are the same
+							same_score_novel[cnn_bin-1] += 1
+					total_novel[cnn_bin-1] += 1
+		"""
+
+		# Counting if at least one person/network agreed
+
+		# Get list of all network scores
+		cnn_scores = set()
+		for n in networks:			
+			cnn_score = 1. - A.image_dict[p]['cnn_scores'][n]
+			cnn_bin = int(np.floor(7*cnn_score) + 1)
+			if cnn_bin == 8:
+				cnn_bin = 7
+			cnn_scores.add(cnn_bin)
+		human_scores = set(A.image_dict[p]['scores'])
+		agree_scores = cnn_scores.intersection(human_scores)
+		print(agree_scores)
+
+		# Check novelty respective to the network 
+		# Note ResNet is trained on CUB, the others are trained on ImageNet
+		im1known = ('imagenet' in A.image_dict[p]['novelty']['im1'] and 'resnet' not in n) \
+			or ('cub' in A.image_dict[p]['novelty']['im1'] == 'cub' and 'resnet'  in n)
+		im2known = ('imagenet' in A.image_dict[p]['novelty']['im2'] and 'resnet' not in n) \
+			or ( 'cub' in A.image_dict[p]['novelty']['im2'] == 'cub' and 'resnet'  in n)
+
+		for s in agree_scores:
+			if im1known and im2known:
+				if spec1 == spec2:
+					same_score_known[cnn_bin-1] += 1
+				total_known[cnn_bin-1] +=1
+			if not im1known and not im2known:
+				if spec1 == spec2:		# If species are the same
+					same_score_novel[cnn_bin-1] += 1
+				total_novel[cnn_bin-1] += 1
+		"""
+			
+
+
+	# plt.figure()
+	print(same_score_known)
+	print(same_score_novel)
+	print(total_known)
+	print(total_novel)
+
+	plt.plot(np.arange(1,8), same_score_known/total_known, marker='o', color='r', label='Both Known')
+	plt.plot(np.arange(1,8), same_score_novel/total_novel, marker='o', color='b', label='Both Novel')
+	plt.legend()
+	plt.title('Same-Species Frequency: Human-Network Agreement by Novelty')
+	plt.xlabel('Scores')
+	plt.ylabel('Frequency of Same Species')
+	plt.xticks(np.arange(1,8), np.arange(1,8))
+	plt.hlines(np.arange(0,1,0.1), 1, 7, colors='lightgrey', linestyles='dashed', zorder=1, linewidth=0.5)
+	plt.tight_layout()
+	plt.show()
 
 
 
@@ -896,16 +1207,19 @@ if __name__ == "__main__":
 				'alexnet_conv_3',
 				'alexnet_conv_4',
 				'alexnet_conv_5',
+				'alexnet_output',
 				'vgg16_block_1',
 				'vgg16_block_2',
 				'vgg16_block_3',
 				'vgg16_block_4',
 				'vgg16_block_5',
+				'vgg16_output',
 				'resnet18_block_1',
 				'resnet18_block_2',
 				'resnet18_block_3',
 				'resnet18_block_4',
-				'resnet18_block_5'
+				'resnet18_block_5',
+				'resnet_output'
 				]         
 
 	A = Analysis(feature_path, participant_data_files, network_labels_path)
@@ -940,4 +1254,5 @@ if __name__ == "__main__":
 	# vis_agreement_pairs(A)
 
 	# Analysis based on network correctness
-	novelty(A, df)	
+	# novelty(A, df)
+	species_analysis(A, df)

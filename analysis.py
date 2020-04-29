@@ -45,8 +45,9 @@ class Analysis():
 								#         'scores'      : <np array of all human scores for that pair>
 								#         'prompts'     : <np array>
 								#         'cnn_scores'  : <dictionary of scores>    }
+								#		  'novelty'		: {'im1' : [], 'im2' : []}
 								#     }
-
+	#TODO: Is it actually useful to have novelty here? Maybe somewhere else...
 	def calc_cnn_scores(self, networks):
 		""" 
 		Computes the CNN scores for each of the image pairs in the participant data
@@ -196,7 +197,8 @@ class Analysis():
 				colname = pdata.columns[i]
 				self.partic_dict[ID]['cnn_scores'][colname] = np.array(pdata[colname])[15:]  
 
-				self.cnn_layers.add(colname)
+				if 'euc' not in colname:
+					self.cnn_layers.add(colname)
 			  
 	def make_scores_dict(self):
 		"""
@@ -299,14 +301,13 @@ class Analysis():
 				if i < 15:
 					continue
 				pair = self.make_key(row)
-				print(pair)
 				# Add to dictionary if not there yet
 				if pair not in self.image_dict.keys():
 					self.image_dict[pair] = {   'scores'    : [],
 												'prompts'   : [],
 												'resp_times': [],
 												'cnn_scores': {},
-												'novelty'	: {'im1':[], 'im2':[]}
+												'novelty'	: {'im1':set(), 'im2':set()}
 											}
 										
 				s = row['userChoice']
@@ -332,13 +333,13 @@ class Analysis():
 				spec2 = im2.split('/')[0]
 
 				if spec1 in in_imagenet:
-					self.image_dict[pair]['novelty']['im1'].append('imagenet')
-				if spec1 in cub:
-					self.image_dict[pair]['novelty']['im1'].append('cub')
+					self.image_dict[pair]['novelty']['im1'].add('imagenet')
+				if spec1 in in_cub:
+					self.image_dict[pair]['novelty']['im1'].add('cub')
 				if spec2 in in_imagenet:
-					self.image_dict[pair]['novelty']['im2'].append('imagenet')
-				if spec2 in cub:
-					self.image_dict[pair]['novelty']['im2'].append('cub')
+					self.image_dict[pair]['novelty']['im2'].add('imagenet')
+				if spec2 in in_cub:
+					self.image_dict[pair]['novelty']['im2'].add('cub')
 
 		print('There are', len(self.image_dict.keys()), 'image pairs')
 
