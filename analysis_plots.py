@@ -754,6 +754,8 @@ def novelty(A, species_data):
 					num = layer.split('_')[-1]		# network name is <net>_<block/conv>_<num>
 					if num == 'output':
 						num = 6
+					if 'euc' == num:	#TODO: Fix this
+						continue
 
 					# Get network score
 					s = 1 - A.image_dict[p]['cnn_scores'][layer]
@@ -795,7 +797,7 @@ def novelty(A, species_data):
 	# Plot human-network score pairs based on whether or not the species is in imagenet #
 	#####################################################################################
 	
-	for scoretype in A.cnn_layers:
+	for layer in A.cnn_layers:
 
 		# Agregate data for all participants
 		# x axis = human scores
@@ -813,7 +815,7 @@ def novelty(A, species_data):
 			spec2 = np.array([i[1].split('/')[0] for i in imgs])
 
 			hscores = list(A.partic_dict[part]['hscores'])                      # Human Scores
-			cscores = list(1 - A.partic_dict[part]['cnn_scores'][scoretype])      # Network Scores (inverted)
+			cscores = list(1 - A.partic_dict[part]['cnn_scores'][layer])      # Network Scores (inverted)
 
 			for i in range(len(spec1)):
 
@@ -834,7 +836,7 @@ def novelty(A, species_data):
 					y_notin[x].append(cscores[i])
 
 		# Plot score pairs for known, novel, and one known/one novel cases
-		plt.figure()
+		# plt.figure()
 		plt.xticks(ticks=np.arange(1,8), labels=np.arange(1,8), fontsize=10)
 		w=0.1
 		for x in range(7):	# Plot by human score
@@ -848,32 +850,60 @@ def novelty(A, species_data):
 			plt.scatter(x_onein, y_onein[x],  c='g', marker='.',s=8)
 			plt.scatter(x_notin-2*w, y_notin[x], c='r', marker='.', s=8)
 
-		plt.title('Network (' + scoretype +') vs Human Scores - Novelty', fontsize=12)
+
+		plt.title('Network (' + layer +') vs Human Scores - Novelty', fontsize=12)
 		plt.xlabel('Human Scores (Least to Most Similar)', fontsize=10)
 		plt.yticks(fontsize=10)
 		plt.ylabel('Normalized Network Scores (Least to Most Similar)', fontsize=10)
 		plt.legend(labels=['Both Known', 'One Known', 'Both Novel'],loc='lower right')
 		plt.tight_layout()
-		plt.show()
+		# plt.show()
+
+		## Compute correlation based on network familiarity
+		x = []
+		y = []
+		for i in range(7):
+			y += y_in[i]
+			x += list(i*np.ones(len(y_in[i])))
+		# print('Correlation In ImageNet:', layer, np.corrcoef(x, y)[0,1])
+		x = []
+		y = []
+		for i in range(7):
+			y += y_onein[i]
+			x += list(i*np.ones(len(y_onein[i])))
+		# print('Correlation One In ImageNet:', layer,np.corrcoef(x, y)[0,1])
+		x = []
+		y = []
+		for i in range(7):
+			y += y_notin[i]
+			x += list(i*np.ones(len(y_notin[i])))
+		print('Correlation Not In ImageNet:', layer,np.corrcoef(x, y)[0,1])
 
 	
 		# Plot only the average score
-		"""
+		y_in_avg = np.zeros(7)
+		y_onein_avg = np.zeros(7)
+		y_notin_avg = np.zeros(7)
 		plt.figure()
-		plt.xticks(ticks=np.arange(1,8), labels=np.arange(1,8), fontsize=10)
-		plt.scatter(x_in+2*w, y_in, label='Both Known', c='b', marker='.', s=8)
-		plt.scatter(x_onein, y_onein, label='One Known', c='g', marker='.',s=8)
-		plt.scatter(x_notin-2*w, y_notin, label='Both Novel', c='r', marker='.', s=8)
-		plt.title('Network (' + scoretype +') vs Human Scores - Novelty', fontsize=12)
+		for x in range(7):	# Plot by human score
+			y_in_avg[x] = np.mean(y_in[x])
+			y_onein_avg[x] = np.mean(y_onein[x])
+			y_notin_avg[x] = np.mean(y_notin[x])
+	
+		plt.plot(np.arange(7), y_in_avg, c='b', label='Both Known')
+		plt.plot(np.arange(7), y_onein_avg, c='g', label='One Known')
+		plt.plot(np.arange(7), y_notin_avg, c='r', label='Both Novel')
+
+		plt.title('Network (' + layer +') vs Human Scores - Novelty', fontsize=12)
 		plt.xlabel('Human Scores (Least to Most Similar)', fontsize=10)
+		plt.ylim(0,1)
 		
 		plt.yticks(fontsize=10)
 		plt.ylabel('Normalized Network Scores (Least to Most Similar)', fontsize=10)
 		plt.legend(loc='lower right')
 		plt.tight_layout()
-		plt.show()
-		"""
-	
+		# plt.show()
+		
 def species_analysis(A, species_data):
 	"""
 	Extracts statistics about species similarity in human/network choices
@@ -1195,7 +1225,6 @@ def species_analysis(A, species_data):
 	plt.show()
 
 
-
 if __name__ == "__main__":
 	participant_data_files = os.getcwd() + '/data/'
 	feature_path = os.getcwd() + '/features/'
@@ -1254,5 +1283,5 @@ if __name__ == "__main__":
 	# vis_agreement_pairs(A)
 
 	# Analysis based on network correctness
-	# novelty(A, df)
-	species_analysis(A, df)
+	novelty(A, df)
+	# species_analysis(A, df)
