@@ -723,11 +723,14 @@ def novelty(A, species_data):
 	species = np.array(species_data['name'])
 
 	# Only look at species not in CUB training set
-	good_idx = np.argwhere(cub == 'No')
+	# good_idx = np.argwhere(cub == 'No')
 	# good_idx = np.arange(len(imagenet))
 	
-	in_imagenet = species[np.argwhere(imagenet[good_idx] == 'Yes')][:,0]
-	notin_imagenet = species[np.argwhere(imagenet[good_idx] == 'No')][:,0]
+	in_imagenet = species[np.argwhere(imagenet == 'Yes')][:,0]
+	notin_imagenet = species[np.argwhere(imagenet == 'No')][:,0]
+
+	in_cub = species[np.argwhere(cub == 'Yes')][:,0]
+	notin_cub = species[np.argwhere(cub == 'No')][:,0]
 
 	##############################################################
 	# Plots scores per layer, split by known/novel classes
@@ -767,21 +770,30 @@ def novelty(A, species_data):
 					spec1 = im1.split('/')[0]
 					spec2 = im2.split('/')[0]
 
+					# Check novelty
+					spec1_known  = (spec1 in in_imagenet and 'resnet' not in layer) \
+						or (spec1[i] in in_cub and 'resnet'  in layer)
+					spec2_known = (spec2 in in_imagenet and 'resnet' not in layer) \
+						or (spec2 in in_cub and 'resnet'  in layer)
+
+					# spec1_known = spec1 in in_imagenet
+					# spec2_known = spec2 in in_imagenet
+
 					# print(spec1 in in_imagenet and spec2 in in_imagenet)
-					if spec1 in in_imagenet and spec2 in in_imagenet:
-						x_in.append(s)	# invert score
+					if spec1_known and spec2_known:
+						x_in.append(s)
 						y_in.append(int(num))
-					elif spec1 in notin_imagenet and spec2 in notin_imagenet:
-						x_notin.append(s)	# invert score
+					elif not spec1_known and not spec2_known:
+						x_notin.append(s)	
 						y_notin.append(int(num))
 		
 		# Both images are in ImageNet
 		y_in += np.random.uniform(low=-.2, high=0.2, size=len(y_in))
-		plt.scatter(x_in, y_in, c=colors_in[i], s=1, label='Both Known')
+		plt.scatter(x_in, y_in, c=colors_in[i], s=1, label='Both In ImageNet')
 
 		# Both images are not in ImageNet
 		y_notin += np.random.uniform(low=-.2, high=0.2, size=len(y_notin))
-		plt.scatter(x_notin, y_notin+0.4, c=colors_notin[i], s=1, label='Both Novel')
+		plt.scatter(x_notin, y_notin+0.4, c=colors_notin[i], s=1, label='Neither in ImageNet')
 
 		netname = net.split('_')[0].capitalize()
 		plt.title('Score Distribution for ' + netname, fontsize=14)
@@ -819,24 +831,33 @@ def novelty(A, species_data):
 
 			for i in range(len(spec1)):
 
+				
+				# spec1_known  = (spec1[i] in in_imagenet and 'resnet' not in layer) \
+				# 		or (spec1[i] in in_cub and 'resnet'  in layer)
+				# spec2_known = (spec2[i] in in_imagenet and 'resnet' not in layer) \
+				# 		or (spec2[i] in in_cub and 'resnet'  in layer)
+
+				spec1_known = spec1[i] in in_imagenet
+				spec2_known = spec2[i] in in_imagenet
+
 				# If both species in imagenet, add to list
-				if spec1[i] in in_imagenet and spec2[i] in in_imagenet:
+				if spec1_known and spec2_known:
 					x = hscores[i]-1
 					y_in[x].append(cscores[i])
 
 				# If exactly one species in imagenet, add to list
-				elif ((spec1[i] in in_imagenet and spec2[i] in notin_imagenet) or
-					 (spec1[i] in notin_imagenet and spec2[i] in in_imagenet)):
+				elif ((spec1_known and not spec2_known) or
+					 (not spec1_known and spec2_known)):
 					x = hscores[i]-1
 					y_onein[x].append(cscores[i])
 
 				# If neither species in imagenet, add to list
-				elif spec1[i] in notin_imagenet and spec2[i] in notin_imagenet:
+				elif not spec1_known and not spec2_known:
 					x = hscores[i]-1
 					y_notin[x].append(cscores[i])
 
 		# Plot score pairs for known, novel, and one known/one novel cases
-		# plt.figure()
+		plt.figure()
 		plt.xticks(ticks=np.arange(1,8), labels=np.arange(1,8), fontsize=10)
 		w=0.1
 		for x in range(7):	# Plot by human score
@@ -857,7 +878,7 @@ def novelty(A, species_data):
 		plt.ylabel('Normalized Network Scores (Least to Most Similar)', fontsize=10)
 		plt.legend(labels=['Both Known', 'One Known', 'Both Novel'],loc='lower right')
 		plt.tight_layout()
-		# plt.show()
+		plt.show()
 
 		## Compute correlation based on network familiarity
 		x = []
@@ -877,7 +898,7 @@ def novelty(A, species_data):
 		for i in range(7):
 			y += y_notin[i]
 			x += list(i*np.ones(len(y_notin[i])))
-		print('Correlation Not In ImageNet:', layer,np.corrcoef(x, y)[0,1])
+		# print('Correlation Not In ImageNet:', layer,np.corrcoef(x, y)[0,1])
 
 	
 		# Plot only the average score
@@ -893,6 +914,7 @@ def novelty(A, species_data):
 		plt.plot(np.arange(7), y_in_avg, c='b', label='Both Known')
 		plt.plot(np.arange(7), y_onein_avg, c='g', label='One Known')
 		plt.plot(np.arange(7), y_notin_avg, c='r', label='Both Novel')
+		plt.xticks(np.arange(7), np.arange(1,8))
 
 		plt.title('Network (' + layer +') vs Human Scores - Novelty', fontsize=12)
 		plt.xlabel('Human Scores (Least to Most Similar)', fontsize=10)
@@ -902,7 +924,7 @@ def novelty(A, species_data):
 		plt.ylabel('Normalized Network Scores (Least to Most Similar)', fontsize=10)
 		plt.legend(loc='lower right')
 		plt.tight_layout()
-		# plt.show()
+		plt.show()
 		
 def species_analysis(A, species_data):
 	"""
@@ -913,7 +935,11 @@ def species_analysis(A, species_data):
 	# How often the species is the same for all peoples' scores
 	#####################################################################################
 	same_spec_people = np.zeros(7)
+	same_spec_people_image = np.zeros(7)
+	same_spec_people_bird = np.zeros(7)
 	total = np.zeros(7)
+	total_image = np.zeros(7)
+	total_bird = np.zeros(7)
 	for p in A.image_dict.keys():
 
 		# Get species information
@@ -923,23 +949,39 @@ def species_analysis(A, species_data):
 		spec1 = im1.split('/')[0]
 		spec2 = im2.split('/')[0]
 
-		for hscore in A.image_dict[p]['scores']:
+		for i, hscore in enumerate(A.image_dict[p]['scores']):
 			if spec1 == spec2:
 				same_spec_people[hscore-1] += 1
+
+			if A.image_dict[p]['prompts'][i] == 'birds':
+				# print('bird')
+				if spec1 == spec2:
+					same_spec_people_bird[hscore-1] += 1
+				total_bird[hscore-1] += 1
+			elif A.image_dict[p]['prompts'][i] == 'images':
+				if spec1 == spec2:
+					same_spec_people_image[hscore-1] += 1
+				total_image[hscore-1] += 1
+
 
 			total[hscore-1] += 1
 
 	print(same_spec_people)
 	print('Same Species for Humans:', same_spec_people/total)
-	# plt.figure()
+	print('Same Species Human Bird', same_spec_people_bird/total_bird)
+	print('Same Species Human Images', same_spec_people_image/total_image)
+	plt.figure()
 	# plt.plot(np.arange(1,8), same_spec_people/total, marker='o', color='r')
-	# plt.title('Same-Species Frequency: Humans')
-	# plt.xlabel('Human Scores')
-	# plt.ylabel('Frequency of Same Species')
-	# plt.xticks(np.arange(1,8), np.arange(1,8))
-	# plt.hlines(np.arange(0,1,0.1), 1, 7, colors='lightgrey', linestyles='dashed', zorder=1, linewidth=0.5)
-	# plt.tight_layout()
-	# plt.show()
+	plt.plot(np.arange(1,8), same_spec_people_bird/total_bird, marker='o', color='r', label='Bird Prompt')
+	plt.plot(np.arange(1,8), same_spec_people_image/total_image, marker='o', color='b', label='Image Prompt')
+	plt.legend()
+	plt.title('Same-Species Frequency: Humans')
+	plt.xlabel('Human Scores')
+	plt.ylabel('Frequency of Same Species')
+	plt.xticks(np.arange(1,8), np.arange(1,8))
+	plt.hlines(np.arange(0,1,0.1), 1, 7, colors='lightgrey', linestyles='dashed', zorder=1, linewidth=0.5)
+	plt.tight_layout()
+	plt.show()
 
 	#####################################################################################
 	# How often the species is the same for all networks' scores
@@ -1017,19 +1059,19 @@ def species_analysis(A, species_data):
 	same_spec_avglayer = np.sum(same_spec_networks, axis=0)
 	total_avglayer = np.sum(total, axis=0)
 
-	# plt.figure()
-	# plt.plot(np.arange(1,8), same_spec_alex/total_alex, marker='o', color='r', label='AlexNet')
-	# plt.plot(np.arange(1,8), same_spec_vgg/total_vgg, marker='o', color='purple', label='VGG16')
-	# plt.plot(np.arange(1,8), same_spec_res/total_resnet, marker='o', color='teal', label='ResNet-18')
-	# plt.plot(np.arange(1,8), same_spec_avglayer/total_avglayer, marker='o', color='grey', label='Average')
-	# plt.title('Same-Species Frequency: Networks')
-	# plt.xlabel('Human Scores')
-	# plt.ylabel('Frequency of Same Species')
-	# plt.legend()
-	# plt.xticks(np.arange(1,8), np.arange(1,8))
-	# plt.hlines(np.arange(0,1,0.1), 1, 7, colors='lightgrey', linestyles='dashed', zorder=1, linewidth=0.5)
-	# plt.tight_layout()
-	# plt.show()
+	plt.figure()
+	plt.plot(np.arange(1,8), same_spec_alex/total_alex, marker='o', color='r', label='AlexNet')
+	plt.plot(np.arange(1,8), same_spec_vgg/total_vgg, marker='o', color='purple', label='VGG16')
+	plt.plot(np.arange(1,8), same_spec_res/total_resnet, marker='o', color='teal', label='ResNet-18')
+	plt.plot(np.arange(1,8), same_spec_avglayer/total_avglayer, marker='o', color='grey', label='Average')
+	plt.title('Same-Species Frequency: Networks')
+	plt.xlabel('Binned Network Scores')
+	plt.ylabel('Frequency of Same Species')
+	plt.legend()
+	plt.xticks(np.arange(1,8), np.arange(1,8))
+	plt.hlines(np.arange(0,1,0.1), 1, 7, colors='lightgrey', linestyles='dashed', zorder=1, linewidth=0.5)
+	plt.tight_layout()
+	plt.show()
 
 	#####################################################################################
 	# When people and networks give the same score, how often are the species the same
@@ -1060,15 +1102,17 @@ def species_analysis(A, species_data):
 
 					total[cnn_bin-1] += 1
 
-	# plt.figure()
-	# plt.plot(np.arange(1,8), same_score/total, marker='o', color='r')
-	# plt.title('Same-Species Frequency: Human-Network Agreement Average')
-	# plt.xlabel('Scores')
-	# plt.ylabel('Frequency of Same Species')
-	# plt.xticks(np.arange(1,8), np.arange(1,8))
-	# plt.hlines(np.arange(0,1,0.1), 1, 7, colors='lightgrey', linestyles='dashed', zorder=1, linewidth=0.5)
-	# plt.tight_layout()
-	# plt.show()
+	# print(same_score/total)
+
+	plt.figure()
+	plt.plot(np.arange(1,8), same_score/total, marker='o', color='r')
+	plt.title('Same-Species Frequency: Human-Network Agreement Average')
+	plt.xlabel('Scores')
+	plt.ylabel('Frequency of Same Species')
+	plt.xticks(np.arange(1,8), np.arange(1,8))
+	plt.hlines(np.arange(0,1,0.1), 1, 7, colors='lightgrey', linestyles='dashed', zorder=1, linewidth=0.5)
+	plt.tight_layout()
+	plt.show()
 
 
 	###################################################################
@@ -1208,10 +1252,9 @@ def species_analysis(A, species_data):
 
 
 	# plt.figure()
-	print(same_score_known)
-	print(same_score_novel)
-	print(total_known)
-	print(total_novel)
+	print('known',same_score_known/total_known)
+	print('novel',same_score_novel/total_novel)
+
 
 	plt.plot(np.arange(1,8), same_score_known/total_known, marker='o', color='r', label='Both Known')
 	plt.plot(np.arange(1,8), same_score_novel/total_novel, marker='o', color='b', label='Both Novel')
@@ -1283,5 +1326,5 @@ if __name__ == "__main__":
 	# vis_agreement_pairs(A)
 
 	# Analysis based on network correctness
-	novelty(A, df)
-	# species_analysis(A, df)
+	# novelty(A, df)
+	species_analysis(A, df)
