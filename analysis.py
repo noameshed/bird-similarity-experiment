@@ -73,7 +73,7 @@ class Analysis():
 					# (length-1000 label probability distribution)
 					# Go through each image pair
 					kllist = []
-					euclist=[]
+					# euclist=[]
 					for _, row in tqdm(pdata.iterrows()):
 
 						# Parse row data
@@ -86,12 +86,12 @@ class Analysis():
 						kllist.append(kl)
 
 						# Optional - compute euclidean distance of output layers
-						dist1 = extract_output_vec(basepath, im1_path)
-						dist2 = extract_output_vec(basepath, im2_path)
-						euclist.append(euclid_dist(dist1, dist2))
+						# dist1 = extract_output_vec(basepath, im1_path)
+						# dist2 = extract_output_vec(basepath, im2_path)
+						# euclist.append(euclid_dist(dist1, dist2))
 				
 					# Update the dataframe
-					pdata[net] = euclist
+					pdata[net] = kllist
 					
 					columns_to_normalize.append(net)
 				else:

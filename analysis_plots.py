@@ -1,10 +1,10 @@
-
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.stats.stats import pearsonr
+from scipy.stats.stats import spearmanr
 
 from analysis import Analysis
 from PIL import Image
@@ -741,6 +741,7 @@ def novelty(A, species_data):
 	## Plot network scores stratified by whether the image is in imagenet or not
 	colors_in = ['darkred', 'darkgreen','midnightblue']
 	colors_notin = ['lightsalmon', 'mediumaquamarine', 'cornflowerblue']
+	
 	for i,net in enumerate(['alexnet', 'vgg16', 'resnet']):
 		# plt.figure()
 		x_in = []
@@ -771,13 +772,13 @@ def novelty(A, species_data):
 					spec2 = im2.split('/')[0]
 
 					# Check novelty
-					spec1_known  = (spec1 in in_imagenet and 'resnet' not in layer) \
-						or (spec1[i] in in_cub and 'resnet'  in layer)
-					spec2_known = (spec2 in in_imagenet and 'resnet' not in layer) \
-						or (spec2 in in_cub and 'resnet'  in layer)
+					# spec1_known  = (spec1 in in_imagenet and 'resnet' not in layer) \
+					# 	or (spec1[i] in in_cub and 'resnet'  in layer)
+					# spec2_known = (spec2 in in_imagenet and 'resnet' not in layer) \
+					# 	or (spec2 in in_cub and 'resnet'  in layer)
 
-					# spec1_known = spec1 in in_imagenet
-					# spec2_known = spec2 in in_imagenet
+					spec1_known = spec1 in in_imagenet
+					spec2_known = spec2 in in_imagenet
 
 					# print(spec1 in in_imagenet and spec2 in in_imagenet)
 					if spec1_known and spec2_known:
@@ -803,12 +804,11 @@ def novelty(A, species_data):
 		plt.legend(loc='upper left')
 		plt.tight_layout()
 		plt.show()
-
+	
 	
 	#####################################################################################
 	# Plot human-network score pairs based on whether or not the species is in imagenet #
 	#####################################################################################
-	
 	for layer in A.cnn_layers:
 
 		# Agregate data for all participants
@@ -826,12 +826,11 @@ def novelty(A, species_data):
 			spec1 = np.array([i[0].split('/')[0] for i in imgs])
 			spec2 = np.array([i[1].split('/')[0] for i in imgs])
 
-			hscores = list(A.partic_dict[part]['hscores'])                      # Human Scores
+			hscores = list(A.partic_dict[part]['hscores'])                    # Human Scores
 			cscores = list(1 - A.partic_dict[part]['cnn_scores'][layer])      # Network Scores (inverted)
 
 			for i in range(len(spec1)):
 
-				
 				# spec1_known  = (spec1[i] in in_imagenet and 'resnet' not in layer) \
 				# 		or (spec1[i] in in_cub and 'resnet'  in layer)
 				# spec2_known = (spec2[i] in in_imagenet and 'resnet' not in layer) \
@@ -857,7 +856,7 @@ def novelty(A, species_data):
 					y_notin[x].append(cscores[i])
 
 		# Plot score pairs for known, novel, and one known/one novel cases
-		plt.figure()
+		# plt.figure()
 		plt.xticks(ticks=np.arange(1,8), labels=np.arange(1,8), fontsize=10)
 		w=0.1
 		for x in range(7):	# Plot by human score
@@ -866,7 +865,7 @@ def novelty(A, species_data):
 			x_onein = np.random.uniform(low=x+1-w, high=x+1+w, size=len(y_onein[x]))	
 			x_notin = np.random.uniform(low=x+1-w, high=x+1+w, size=len(y_notin[x]))	
 
-			# Plot score pairs based on network familiarity
+			Plot score pairs based on network familiarity
 			plt.scatter(x_in+2*w, y_in[x],  c='b', marker='.', s=8)
 			plt.scatter(x_onein, y_onein[x],  c='g', marker='.',s=8)
 			plt.scatter(x_notin-2*w, y_notin[x], c='r', marker='.', s=8)
@@ -880,27 +879,31 @@ def novelty(A, species_data):
 		plt.tight_layout()
 		plt.show()
 
-		## Compute correlation based on network familiarity
+		# Compute correlation based on network familiarity
 		x = []
 		y = []
 		for i in range(7):
 			y += y_in[i]
 			x += list(i*np.ones(len(y_in[i])))
-		print('Pearson correlation In ImageNet:', layer, np.corrcoef(x, y)[0,1])
+		print('Pearson correlation In ImageNet:', layer, pearsonr(x, y))
+		print('Spearman Rank correlation In ImageNet:', layer, spearmanr(x, y))
+		
 		x = []
 		y = []
 		for i in range(7):
 			y += y_onein[i]
 			x += list(i*np.ones(len(y_onein[i])))
-		print('Pearson correlation One In ImageNet:', layer,np.corrcoef(x, y)[0,1])
+		print('Pearson correlation One In ImageNet:', layer, pearsonr(x, y))
+		print('Spearman Rank correlation One In ImageNet:', layer, spearmanr(x, y))
+		
 		x = []
 		y = []
 		for i in range(7):
 			y += y_notin[i]
 			x += list(i*np.ones(len(y_notin[i])))
-		print('Pearson correlation Not In ImageNet:', layer,np.corrcoef(x, y)[0,1])
+		print('Pearson correlation Not In ImageNet:', layer, pearsonr(x, y))
+		print('Spearman Rank correlation Not In ImageNet:', layer,spearmanr(x, y))
 
-	
 		# Plot only the average score
 		y_in_avg = np.zeros(7)
 		y_onein_avg = np.zeros(7)
@@ -925,7 +928,7 @@ def novelty(A, species_data):
 		plt.legend(loc='lower right')
 		plt.tight_layout()
 		plt.show()
-		
+
 def species_analysis(A, species_data):
 	"""
 	Extracts statistics about species similarity in human/network choices
@@ -1295,7 +1298,7 @@ if __name__ == "__main__":
 				]         
 
 	A = Analysis(feature_path, participant_data_files, network_labels_path)
-	A.calc_cnn_scores(networks)         # Only needs to be done once  -
+	# A.calc_cnn_scores(networks)         # Only needs to be done once  -
 										# this makes a copy of your data files with the normalized network distance scores
 	
 	A.make_partic_dict()
@@ -1320,11 +1323,11 @@ if __name__ == "__main__":
 	# response_time(A)
 
 	# Human-network agreement and trends
-	human_network_agreement_combined(A, hscore_distro)
-	human_network_agreement_separate(A, hscore_distro, df)
-	human_network_pairs(A)
-	vis_agreement_pairs(A)
+	# human_network_agreement_combined(A, hscore_distro)
+	# human_network_agreement_separate(A, hscore_distro, df)
+	# human_network_pairs(A)
+	# vis_agreement_pairs(A)
 
 	# Analysis based on network correctness
 	novelty(A, df)
-	species_analysis(A, df)
+	# species_analysis(A, df)
