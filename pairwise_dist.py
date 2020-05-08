@@ -5,7 +5,6 @@ import json
 import numpy as np
 import torch
 
-
 def compute_euc(im1_path, im2_path):
     """
     Returns the euclidean distance between the two feature representations
@@ -23,34 +22,30 @@ def compute_kl(basepath, im1_path, im2_path):
     Returns the KL divergence between the two label probabilities
     at the paths for the two images using the network at the given path
     """
-    # Extract the species and image name information
-    spec1 = im1_path.split('/')[0] + '.json'  
-    im1 = im1_path.split('/')[1]
-
-    spec2 = im2_path.split('/')[0] + '.json'  
-    im2 = im2_path.split('/')[1]
-
-    if spec1 == 'Mimus gilvus.json' or spec2 == 'Mimus gilvus.json':
-        return(0)
-
-    # Extract the probability distribution of labels for the given images
-    print(basepath+spec1)
-    with open(basepath + spec1) as f1:
-        try:
-            data = json.load(f1)
-            dist1 = np.array(data[im1]['confs'])
-        except:
-            print(spec1, im1)
-
-    with open(basepath + spec2) as f2:
-        try:
-            data = json.load(f2)
-            dist2 = np.array(data[im2]['confs'])
-        except:
-            print(spec2, im2)
+    # Get the probability distributions of labels for the given images
+    dist1 = extract_output_vec(basepath, im1_path)
+    dist2 = extract_output_vec(basepath, im2_path)
     
     return kl_dist(dist1, dist2)
 
+def extract_output_vec(basepath, im_path):
+    """
+    Get the network prediction (output vector) for the image
+    at the given path
+    """
+    # Extract the species and image name information
+    spec = im_path.split('/')[0] + '.json'  
+    im = im_path.split('/')[1]
+
+    if spec == 'Mimus gilvus.json':
+        return(0)
+
+     # Extract the probability distribution of labels for the given images
+    with open(basepath + spec) as f1:
+        data = json.load(f1)
+        dist = np.array(data[im]['confs'])
+
+    return dist
 
 def process_tensor(im_path):
     """
@@ -64,7 +59,10 @@ def euclid_dist(im1, im2):
     """
     Returns the Euclidean distance between the two images
     """
-    return torch.sum((im1-im2)**2)
+    try:
+        return torch.sum((im1-im2)**2)
+    except:
+        return np.sum((im1-im2)**2)
 
 def kl_dist(im1, im2):
     """

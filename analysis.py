@@ -1,7 +1,7 @@
 import numpy as np
 import os
 import pandas as pd
-from pairwise_dist import compute_euc, compute_kl
+from pairwise_dist import compute_euc, compute_kl, euclid_dist, extract_output_vec
 from tqdm import tqdm
 
 class Analysis():
@@ -47,7 +47,7 @@ class Analysis():
 								#         'cnn_scores'  : <dictionary of scores>    }
 								#		  'novelty'		: {'im1' : [], 'im2' : []}
 								#     }
-	#TODO: Is it actually useful to have novelty here? Maybe somewhere else...
+
 	def calc_cnn_scores(self, networks):
 		""" 
 		Computes the CNN scores for each of the image pairs in the participant data
@@ -68,52 +68,52 @@ class Analysis():
 			# Go through each network layer requested and compute euclidean distance
 			for net in networks:
 
-				euclist = []
-				# Go through each image pair
-				for _, row in pdata.iterrows():
+				if 'output' in net:
+					# Compute the symmetric KL divergence for the output layer for each network 
+					# (length-1000 label probability distribution)
+					# Go through each image pair
+					kllist = []
+					euclist=[]
+					for _, row in tqdm(pdata.iterrows()):
 
-					# Parse row data
-					im1_path = row['leftIm'].replace('.jpg','')
-					im2_path = row['rightIm'].replace('.jpg','')
+						# Parse row data
+						im1_path = row['leftIm']
+						im2_path = row['rightIm']
 
-					feat1_path = self.feature_path + net + '/' + im1_path + '.pt'
-					feat2_path = self.feature_path + net + '/' + im2_path + '.pt'
+						# Compute the distances for each image pair
+						basepath = os.path.join(self.labels_path, net.split('_')[0]+ '_inat_results/Aves/')
+						kl = compute_kl(basepath, im1_path, im2_path)
+						kllist.append(kl)
 
-					# Compute the distances for each image pair
-					euc = compute_euc(feat1_path, feat2_path)
-					euclist.append(euc)
+						# Optional - compute euclidean distance of output layers
+						dist1 = extract_output_vec(basepath, im1_path)
+						dist2 = extract_output_vec(basepath, im2_path)
+						euclist.append(euclid_dist(dist1, dist2))
+				
+					# Update the dataframe
+					pdata[net] = euclist
 					
-				# Update the dataframe
-				eucname = net
-				pdata[eucname] = euclist
-				
-				columns_to_normalize.append(eucname)
+					columns_to_normalize.append(net)
+				else:
+					euclist = []
+					# Go through each image pair
+					for _, row in pdata.iterrows():
 
-			# Compute the symmetric KL divergence for the output layer for each network 
-			# (length-1000 label probability distribution)
-			# Go through each image pair
-			
-			for net in ['alexnet_output', 'vgg16_output', 'resnet_output']:
-				
-				kllist = []
-				
-				for _, row in tqdm(pdata.iterrows()):
+						# Parse row data
+						im1_path = row['leftIm'].replace('.jpg','')
+						im2_path = row['rightIm'].replace('.jpg','')
 
-					# Parse row data
-					im1_path = row['leftIm']
-					im2_path = row['rightIm']
+						feat1_path = self.feature_path + net + '/' + im1_path + '.pt'
+						feat2_path = self.feature_path + net + '/' + im2_path + '.pt'
 
-					# Compute the distances for each image pair
-					print('FOLDER',  net.split('_')[0])
-					basepath = os.path.join(self.labels_path, net.split('_')[0]+ '_inat_results/Aves/')
-					kl = compute_kl(basepath, im1_path, im2_path)
-					kllist.append(kl)
-				
-				# Update the dataframe
-				klname = net
-				pdata[klname] = kllist
-				
-				columns_to_normalize.append(klname)
+						# Compute the distances for each image pair
+						euc = compute_euc(feat1_path, feat2_path)
+						euclist.append(euc)
+						
+					# Update the dataframe
+					pdata[net] = euclist
+					
+				columns_to_normalize.append(net)		
 			
 			# Save the file with the additional data
 			pdata.to_csv(self.allscores_path + pfile, index=False)

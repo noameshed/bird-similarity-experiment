@@ -199,10 +199,10 @@ def human_human_pairs(A):
 					imagescores.append(si[0])
 
 	# Compute correlation between bird and image prompt
-	corr = pearsonr(birdscores, imagescores)
-	print('Correlation:', corr)	
-	print(allscores)
-	print(np.sum(allscores, axis=1))
+	# corr = pearsonr(birdscores, imagescores)
+	# print('Correlation:', corr)	
+	# print(allscores)
+	# print(np.sum(allscores, axis=1))
 	# allscores_normalized = allscores/np.sum(allscores, axis=0)
 	allscores_normalized = (allscores.T/np.sum(allscores, axis=1)).T	#np.sum(allscores) gets sum of entire matrix
 							# axis=0 gives bird sums (vertical)
@@ -886,19 +886,19 @@ def novelty(A, species_data):
 		for i in range(7):
 			y += y_in[i]
 			x += list(i*np.ones(len(y_in[i])))
-		# print('Correlation In ImageNet:', layer, np.corrcoef(x, y)[0,1])
+		print('Pearson correlation In ImageNet:', layer, np.corrcoef(x, y)[0,1])
 		x = []
 		y = []
 		for i in range(7):
 			y += y_onein[i]
 			x += list(i*np.ones(len(y_onein[i])))
-		# print('Correlation One In ImageNet:', layer,np.corrcoef(x, y)[0,1])
+		print('Pearson correlation One In ImageNet:', layer,np.corrcoef(x, y)[0,1])
 		x = []
 		y = []
 		for i in range(7):
 			y += y_notin[i]
 			x += list(i*np.ones(len(y_notin[i])))
-		# print('Correlation Not In ImageNet:', layer,np.corrcoef(x, y)[0,1])
+		print('Pearson correlation Not In ImageNet:', layer,np.corrcoef(x, y)[0,1])
 
 	
 		# Plot only the average score
@@ -1295,7 +1295,7 @@ if __name__ == "__main__":
 				]         
 
 	A = Analysis(feature_path, participant_data_files, network_labels_path)
-	# A.calc_cnn_scores(networks)         # Only needs to be done once  -
+	A.calc_cnn_scores(networks)         # Only needs to be done once  -
 										# this makes a copy of your data files with the normalized network distance scores
 	
 	A.make_partic_dict()
@@ -1320,11 +1320,11 @@ if __name__ == "__main__":
 	# response_time(A)
 
 	# Human-network agreement and trends
-	# human_network_agreement_combined(A, hscore_distro)
-	# human_network_agreement_separate(A, hscore_distro, df)
-	# human_network_pairs(A)
-	# vis_agreement_pairs(A)
+	human_network_agreement_combined(A, hscore_distro)
+	human_network_agreement_separate(A, hscore_distro, df)
+	human_network_pairs(A)
+	vis_agreement_pairs(A)
 
 	# Analysis based on network correctness
-	# novelty(A, df)
+	novelty(A, df)
 	species_analysis(A, df)
